@@ -220,13 +220,13 @@ const RECIPES=[{
    actions:s=>[],
    text:s=>`お肉とキムチを軽く混ぜたら、蓋をして火を少しだけ弱めます（中弱）。ジュワーッと汁が出るまで蒸して、豚肉にしっかり火を通します。`,
    tip:'蓋をすると中の温度が上がるので、火は中火より少し弱めでちょうど中火くらいの温度になります。ジュワーッと音がして、蓋の内側に水滴がつき、汁がぐつぐつしてきたら次へ。'},
-  {id:'soy',title:'蓋を開けて、醤油をひと回し',heat:4,lid:false,time:'約10秒',watch:'sauce',
-   actions:s=>['soy'],
-   text:s=>`蓋を開けて、醤油を${rounds(s)}回し程度かけます。${rounds(s)===2&&s.items.kimchi.opts.amt==='less'?'（キムチが少なめなので2回し）':''}`,
-   tip:'フライパンのふち寄りに、ぐるっとひと回し。かけたらすぐ蓋をします。'},
-  {id:'hold',title:'もう一度蓋をして、30秒蒸す',heat:4,lid:true,time:'約30秒',watch:'hold',
+  {id:'soy',title:'蓋を開けて、醤油を回し入れて混ぜる',heat:4,lid:false,time:'約20秒',watch:'sauce',
+   actions:s=>['soy','stir:8'],
+   text:s=>`蓋を開けて、醤油を${rounds(s)}回し程度かけたら、少し混ぜます。全体に行き渡ったら、次で蓋をします。${rounds(s)===2&&s.items.kimchi.opts.amt==='less'?'（キムチが少なめなので2回し）':''}`,
+   tip:'フライパンのふち寄りに、ぐるっとひと回し。かけたら軽く混ぜて、色がなじんだら蓋をします。'},
+  {id:'hold',title:'蓋をして、完成を待つ',heat:4,lid:true,time:'約30秒',watch:'hold',
    actions:s=>[],
-   text:s=>`蓋をして、30秒くらいじっくり蒸します。醤油が汁に溶けて、全体に行き渡ります。${s.items.sesame.on?'最後にごま油（'+qty(s,'sesame')+'）を回しかけて仕上げます。':''}`,
+   text:s=>`混ざったら蓋をして、30秒くらいじっくり蒸して完成を待ちます。醤油が汁に溶けて、全体になじみます。${s.items.sesame.on?'最後にごま油（'+qty(s,'sesame')+'）を回しかけて仕上げます。':''}`,
    tip:'混ぜなくても、蒸気と汁で味がなじみます。30秒たったらすぐ火を止めて、お皿に盛り付けます。'}
 ]
 }];
@@ -248,7 +248,7 @@ function fileToData(f){return new Promise((res,rej)=>{const img=new Image(),u=UR
 function viewPhoto(src){const h=$('#lbHost');h.innerHTML='';const d=document.createElement('div');d.className='lb';d.innerHTML='<img alt="お手本写真"><div class="row"><button class="btn sm main" id="lbClose">とじる</button></div>';d.querySelector('img').src=src;h.appendChild(d);d.querySelector('#lbClose').onclick=()=>h.innerHTML='';d.onclick=e=>{if(e.target===d)h.innerHTML=''}}
 function renderRefs(host,key){
   host.innerHTML='';const list=sget(refKey(key),[]);const w=document.createElement('div');w.className='refs';
-  (BREFS[key]||[]).filter(id=>PH[id]).forEach((id,i)=>{const im=document.createElement('img');im.src=PH[id];im.alt='お手本写真 '+(i+1);im.tabIndex=0;im.onclick=()=>viewPhoto(PH[id]);w.appendChild(im)});
+  (BREFS[key]||[]).forEach((id,i)=>{const im=document.createElement('img');im.src=PH[id];im.alt='お手本写真 '+(i+1);im.tabIndex=0;im.onclick=()=>viewPhoto(PH[id]);w.appendChild(im)});
   list.forEach((d,i)=>{const im=document.createElement('img');im.src=d;im.alt='参考写真 '+(i+1);im.tabIndex=0;im.onclick=()=>lightbox(key,i,host);w.appendChild(im)});
   const lb=document.createElement('label');lb.className='add';lb.innerHTML='<span style="font-size:24px">＋</span>写真を追加';
   const inp=document.createElement('input');inp.type='file';inp.accept='image/*';inp.multiple=true;
@@ -299,7 +299,7 @@ function renderSetup(){
     L.forEach(([k,nm,sub])=>{const r=document.createElement('label');r.className='row';r.style.cssText='flex-wrap:nowrap;gap:10px;cursor:pointer';
       const im=k.startsWith('e:')?'<div class="art" style="width:72px;height:56px;display:flex;align-items:center;justify-content:center;font-size:28px">'+k.slice(2)+'</div>':'<img class="art" style="width:72px;height:56px">';
       r.innerHTML='<input type="checkbox" style="width:22px;height:22px;flex:none">'+im+'<div style="flex:1"><b style="font-size:15px"></b><div class="sub"></div></div>';
-      if(!k.startsWith('e:')){const imEl=r.querySelector('img');if(DISH[k])imEl.src=DISH[k];else{const ph=document.createElement('div');ph.className='art';ph.style.cssText='width:72px;height:56px;display:flex;align-items:center;justify-content:center;font-size:28px';ph.textContent=({pan:'🍳',chop:'🥢',hash:'🥢',big:'🍲',blue:'🍚',disp:'🍚',paddle:'🥄',cooker:'🍚',lid:'🫕',stove:'🔥'})[k]||'🍽';imEl.replaceWith(ph)}}r.querySelector('b').textContent=nm;r.querySelector('.sub').textContent=sub;
+      if(!k.startsWith('e:'))r.querySelector('img').src=DISH[k];r.querySelector('b').textContent=nm;r.querySelector('.sub').textContent=sub;
       const cb=r.querySelector('input');cb.checked=!!chk[k];cb.onchange=()=>{chk[k]=cb.checked;updStart()};c.appendChild(r)});h.appendChild(c)}
   sset('gohan-last:'+CUR.id,SET);updStart()}
 function renderSaved(){const h=$('#svList');h.innerHTML='';const all=sget('gohan-setups',[]).filter(x=>x.recipe===CUR.id);
