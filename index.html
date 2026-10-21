@@ -204,7 +204,7 @@ const RECIPES=[{
  serveStep:{id:'serve',title:'ご飯をよそって完成',heat:0,noHeat:true,scene:'table',time:'約1分',watch:'none',actions:s=>['serve'],
    text:s=>s.items.rice.opts.her==='yes'?'青い線の茶碗（自分）と、使い捨ての耐熱容器（彼女）にご飯をよそって、豚キムチのお皿と並べたら完成です。':'青い線の茶碗にご飯をよそって、豚キムチのお皿と並べたら完成です。',tip:'ご飯はふんわり山にすると、きれいに見えます。'},
  steps:[
-  {id:'oil',title:'フライパンにオリーブオイルをしく',heat:1,heatNote:'弱火にかけて、温めはじめる',time:'約30秒',watch:'oil',
+  {id:'oil',title:'フライパンにオリーブオイルをしく',heat:1,heatNote:'弱火にかけて、温めはじめる',time:'約30秒〜1分',watch:'oil',
    actions:s=>['oil'],
    text:s=>`フライパンにオリーブオイル（${qty(s,'oil')}）を入れて、全体に広げます。`,
    tip:'火をつけると、フライパンは余熱でじわじわ温まります。油を広げている間に温めておくと、お肉を入れたときにジュッと焼けます。ふちの近くまで薄く広げると、くっつきにくくなります。'},
@@ -367,8 +367,8 @@ setInterval(()=>{ if(!sim||$('#sc-cook').hidden)return;
     if(st.glazeToo&&q.hasSauce){const g=q.glaze;html+=`<div class="stat" style="margin-top:8px">焼き具合：${g<.2?'まだ汁っぽい':g<.5?'汁気が減ってきた':g<=.85?'照りが出て香ばしい':'焦げそう！'}</div><div class="gauge"><i style="width:${Math.min(100,Math.round(g/1.2*100))}%;background:linear-gradient(90deg,#d9a36a,#7a3f18)"></i><b class="zone" style="left:${.4/1.2*100}%;width:${.45/1.2*100}%"></b></div>`}}
   if(w._h!==html){w.innerHTML=html;w._h=html}
   const b=$('#badge');let msg='';if(q.stickWarn&&!q.lidOn)msg='油が足りず、くっつきやすい状態';else if(q.cold)msg='フライパンが温まる前です（焼き色がつきにくい）';else if(q.lidOn&&q.temp>.88)msg='蓋の中が熱すぎます。少し火を弱めましょう';else if(q.burnt&&!q.lidOn)msg='焦げそうです。火を弱めるか混ぜましょう';
-  {const t=q.temp;$('#tempBar').style.width=Math.round(t*100)+'%';const oilS=st.id==='oil',z=$('#tempZone');if(z){z.style.left=oilS?'40%':'60%';z.style.width=oilS?'18%':'25%'}
-    $('#tempTxt').textContent=(oilS?(t<.12?'冷たい':t<.4?'温まりはじめ':t<=.6?'ちょうどいい（弱火で温まった）':'かなり熱い'):(t<.12?'冷たい':t<.45?'温まりはじめ':t<.6?'あと少し':t<=.85?'ちょうどいい（中火の温度）':'かなり熱い'))+'　'+Math.round(t*100)+'%'}
+  {const t=q.temp;$('#tempBar').style.width=Math.round(t*100)+'%';const oilS=st.id==='oil',z=$('#tempZone');if(z){z.style.left=oilS?'40%':'50%';z.style.width=oilS?'18%':'35%'}
+    $('#tempTxt').textContent=(oilS?(t<.12?'冷たい':t<.4?'温まりはじめ':t<=.6?'ちょうどいい（弱火で温まった）':'かなり熱い'):(t<.12?'冷たい':t<.35?'温まりはじめ':t<.5?'あと少し':t<=.85?'ちょうどいい（中火の温度）':'かなり熱い'))+'　'+Math.round(t*100)+'%'}
   if(sim.scene!=='pan'||(sim.tb&&sim.tb.on))msg='';
   b.hidden=!msg;b.textContent=msg;b.classList.toggle('warn',!!msg)},250);
 
@@ -455,13 +455,13 @@ class Sim{
       const m=(a.sauce+b.sauce)/2;a.sauce+=(m-a.sauce)*.03;b.sauce+=(m-b.sauce)*.03;
       if(a.t==='kimchi'&&b.t==='pork')b.red=Math.min(1,b.red+.0045);else if(b.t==='kimchi'&&a.t==='pork')a.red=Math.min(1,a.red+.0045);
       else if(a.t==='pork'&&b.t==='pork'){const r=(a.red+b.red)/2;a.red+=(r-a.red)*.01;b.red+=(r-b.red)*.01}}});
-    this.speed=1;this.heat=1;this.heatT=.35;this.temp=0;this.paused=false;this.manualStir=false;this.autoStir=false;this.drag=null;
+    this.speed=1;this.heat=1;this.heatT=.57;this.temp=0;this.paused=false;this.manualStir=false;this.autoStir=false;this.drag=null;
     this.pieces=[];this.steam=[];this.tasks=[];this.cur=null;this.oil={r:0,max:0,seed:Math.random()*6};this.pour=null;this.drops=[];this.tilt=0;this.acc=0;this.last=0;this.t=0;this.time=0;this.cfg=null;
     this.resize();new ResizeObserver(()=>this.resize()).observe(cv);
   }
   pt(e){const r=this.cv.getBoundingClientRect();return {x:(e.clientX-r.left)/r.width*this.W,y:(e.clientY-r.top)/r.height*this.W}}
   resize(){const w=this.cv.clientWidth||460,d=Math.min(2,window.devicePixelRatio||1);this.cv.width=this.cv.height=Math.round(w*d)}
-  setHeat(v){this.heat=v;this.heatT=[0,.5,.7,1,.55][v]}
+  setHeat(v){this.heat=v;this.heatT=[0,.57,.79,1,.6][v]}
   config(s){this.cfg=s;const m={less:.72,mid:.95,more:1};this.oil.max=this.R*m[s.items.oil.opts.amt]}
 
   /* --- 材料を置く --- */
@@ -509,7 +509,7 @@ class Sim{
     else if(name==='plate')this.startPlate(true);
     else if(name==='soy'){const n=rounds(this.cfg);for(let a=0;a<Math.PI*2*n;a+=.12){const q=this.soyPt(a/(Math.PI*2)*3,n);this.addLiq(q.x,q.y,.22);this.soak(q.x,q.y,.13)}}
   }
-  resetTo(i){this.rIdx=i;this.clearAll();this.temp=i===0?0:i===1?.3:this.heatT;const steps=STEPS;this.heatAfter=null;
+  resetTo(i){this.rIdx=i;this.clearAll();this.temp=i===0?0:i===1?.45:this.heatT;const steps=STEPS;this.heatAfter=null;
     for(let k=0;k<i;k++)steps[k].actions(this.cfg).forEach(a=>{const n=a.split(':')[0];if(n!=='stir')this.instant(n)});
     // 瞬間配置したあと、少し物理を進めて落ち着かせる
     for(let k=0;k<20;k++)M.Engine.update(this.eng,1000/60);{const si=STEPS.findIndex(x=>x.id==='steam'),hi=STEPS.findIndex(x=>x.id==='hold');if(si>=0&&si<i)this.steamProg=1;if(hi>=0&&hi<i)this.holdProg=1}
@@ -581,12 +581,12 @@ class Sim{
     if(this.riceOn)this.riceProg=Math.min(1,this.riceProg+dt*this.speed/2400);
     this.runTasks(dt);
     if(this.autoFlip&&this.temp>.25){this.flipT-=dt*Math.max(1,this.speed);if(this.flipT<=0){let best=null,bv=.35;for(const p of this.pieces){if(p.t!=='pork'||!p.body||p.z>0||p.flipped||p.flip>0||p.fd>0)continue;const v=p.c[1-p.side];if(v>=bv){bv=v;best=p}}if(best){best.flipped=true;best.fd=.05;this.flipT=rnd(1.8,2.8)}else this.flipT=.3}}
-    {const la=this.lidOn?Math.min(1,this.lidA+dt*2.2):Math.max(0,this.lidA-dt*2.2);this.lidA=la;const tgt=Math.min(1,this.heatT*(1+.3*la));this.temp+=(tgt-this.temp)*Math.min(1,dt*Math.max(1,this.speed)/(tgt>this.temp?6:35));
+    {const la=this.lidOn?Math.min(1,this.lidA+dt*2.2):Math.max(0,this.lidA-dt*2.2);this.lidA=la;const tgt=Math.min(1,this.heatT*(1+.3*la));this.temp+=(tgt-this.temp)*Math.min(1,dt*Math.max(1,this.speed)/(tgt>this.temp?25:45));
       const cs=STEPS[STEP]?STEPS[STEP].id:'';if(la>.95){const f=Math.max(0,Math.min(1.6,(this.temp-.25)/.3));if(cs==='steam'&&this.pieces.some(p=>p.body))this.steamProg=Math.min(1,this.steamProg+dt*this.speed*f/60);if(cs==='hold'&&this.temp>.4)this.holdProg=Math.min(1,this.holdProg+dt*this.speed/30)}}
     // 空から降りてくる食材
     for(const p of this.pieces){
       if(p.delay>0){p.delay-=dt;if(p.delay<=0&&!p.body){p.fall=.38;p.z=46;this.attach(p,false)}continue}
-      if(p.fall>0){p.fall-=dt;p.z=Math.max(0,46*p.fall/.38);if(p.fall<=0){p.z=0;M.Body.set(p.body,'isSensor',false);if(p.t==='pork'){this.sizzleBurst=Math.min(1,.2+this.temp);this.temp=Math.max(0,this.temp-.01)}if(p.t==='kimchi')this.addLiq(p.x0,p.y0,.7,this.K)}}
+      if(p.fall>0){p.fall-=dt;p.z=Math.max(0,46*p.fall/.38);if(p.fall<=0){p.z=0;M.Body.set(p.body,'isSensor',false);if(p.t==='pork'){this.sizzleBurst=Math.min(1,.2+this.temp);this.temp=Math.max(0,this.temp-.005)}if(p.t==='kimchi')this.addLiq(p.x0,p.y0,.7,this.K)}}
       if(p.fd>0){p.fd-=dt;if(p.fd<=0){p.side^=1;p.flip=1;p.fr=1.7;p.bd=Math.random()<.5?1:-1}}
       if(p.flip>0)p.flip=Math.max(0,p.flip-dt*(p.fr||2.5));
     }
@@ -627,7 +627,7 @@ class Sim{
     let ss=0;for(const p of all)if(p.sauce>.3)ss++;
     let gl=0;for(const p of all)gl+=Math.min(1.3,p.glaze||0);gl=all.length?gl/all.length:0;let bt=0;for(const p of pk)bt+=Math.max(p.c[0],p.c[1]);bt=pk.length?bt/pk.length:0;
     return {oil:Math.min(1,this.oil.r/(this.R*.95)),cook,bottom:bt,glaze:gl,riceProg:this.riceProg,riceOn:this.riceOn,steamProg:this.steamProg,holdProg:this.holdProg,lidOn:this.lidOn&&this.lidA>.9,hasPork:pk.length>0,nPork:pk.length,nFlip:pk.filter(p=>p.flipped).length,sauce:all.length?ss/all.length:0,hasSauce:all.some(p=>p.sauce>.05),
-      stickWarn:pk.some(p=>p.stick),temp:this.temp,cold:pk.length>0&&this.temp<.45&&!(this.tb&&this.tb.on),burnt:pk.some(p=>(p.c[0]+p.c[1])/2>.95)||gl>1.0}}
+      stickWarn:pk.some(p=>p.stick),temp:this.temp,cold:pk.length>0&&this.temp<.3&&!(this.tb&&this.tb.on),burnt:pk.some(p=>(p.c[0]+p.c[1])/2>.95)||gl>1.0}}
 
   /* --- 描画 --- */
   draw(){
