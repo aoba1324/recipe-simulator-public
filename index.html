@@ -1,0 +1,817 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>[hidden]{display:none!important}body{margin:0}img{max-width:100%}</style></head><body><title>レシピシミュレータ</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700;900&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+<style>
+/* 台所のコンロ前に立つ人向け。大きな文字と大きなボタン。上にシミュレーション、下に手順。 */
+:root{
+  --bg:#eef2ef; --card:#fbfcfb; --ink:#1d2925; --sub:#5f6f69; --line:#d6ded9;
+  --acc:#d63a2b; --acc-ink:#fff; --teal:#2b7a69; --teal-soft:#d9ece6; --chip:#e3eae6; --warn:#b4570f; --warn-soft:#fbe8d2;
+  --shadow:0 1px 3px rgba(20,40,30,.12);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#121816; --card:#1b2421; --ink:#eaf1ed; --sub:#a1b2aa; --line:#2c3833;
+  --acc:#ff6b58; --acc-ink:#1b0905; --teal:#59c2a9; --teal-soft:#1f3a33; --chip:#27322e; --warn:#f0a35b; --warn-soft:#3b2a17;
+  --shadow:0 1px 3px rgba(0,0,0,.5); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121816; --card:#1b2421; --ink:#eaf1ed; --sub:#a1b2aa; --line:#2c3833;
+  --acc:#ff6b58; --acc-ink:#1b0905; --teal:#59c2a9; --teal-soft:#1f3a33; --chip:#27322e; --warn:#f0a35b; --warn-soft:#3b2a17;
+  --shadow:0 1px 3px rgba(0,0,0,.5); color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Zen Maru Gothic',-apple-system,'Hiragino Maru Gothic ProN','Hiragino Sans','Noto Sans JP',sans-serif;font-size:16px;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px 120px}
+#app{max-width:520px;margin:0 auto}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid var(--teal);outline-offset:2px}
+h1,h2,h3,p{margin:0}
+.top{display:flex;align-items:center;gap:8px;min-height:44px;margin-bottom:8px}
+.top h2{font-size:18px;font-weight:900;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ico{border:0;background:var(--chip);border-radius:12px;min-width:44px;height:44px;padding:0 12px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:4px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:var(--shadow)}
+.stack{display:flex;flex-direction:column;gap:12px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sub{color:var(--sub);font-size:14px}
+.btn{border:0;border-radius:14px;min-height:48px;padding:0 18px;font-weight:900;background:var(--chip)}
+.btn.main{background:var(--acc);color:var(--acc-ink)}
+.btn.teal{background:var(--teal);color:var(--bg)}
+.btn.sm{min-height:38px;padding:0 12px;font-size:14px;border-radius:10px}
+.btn.armed{background:var(--warn-soft);color:var(--warn);outline:2px solid var(--warn)}
+.btn:disabled{opacity:.45}
+.hero{padding:18px 4px 6px}
+.hero h1{font-size:34px;font-weight:900;letter-spacing:.02em}
+.hero p{color:var(--sub);margin-top:4px}
+.dish{display:flex;gap:14px;align-items:center;width:100%;text-align:left;border:1px solid var(--line);background:var(--card);border-radius:18px;padding:14px;box-shadow:var(--shadow)}
+.dish .em{font-size:40px;width:64px;height:64px;border-radius:16px;background:var(--teal-soft);display:flex;align-items:center;justify-content:center;flex:none}
+.dish b{font-size:20px;display:block}
+.dish.off{opacity:.55;border-style:dashed;box-shadow:none}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1.5px solid transparent;background:var(--chip);border-radius:999px;min-height:40px;padding:0 14px;font-weight:700;font-size:15px}
+.chip[aria-pressed="true"]{background:var(--teal);color:var(--bg)}
+.chip.rec::after{content:"★";margin-left:4px;color:var(--acc)}
+.chip[aria-pressed="true"].rec::after{color:var(--bg)}
+.ing{display:flex;flex-direction:column;gap:10px}
+.ing .head{display:flex;align-items:center;gap:10px}
+.ing .head .artw{flex:none;display:flex}
+.ing>.row{align-self:flex-start}
+.art{width:56px;height:56px;border-radius:12px;object-fit:cover;background:var(--chip)}
+.ing .head b{font-size:17px;flex:1;min-width:3.2em}
+.ing .qty{font-weight:700;color:var(--teal);font-size:15px}
+.ing.off{opacity:.6}
+.opt{display:flex;flex-direction:column;gap:4px}
+.opt label{font-size:13px;color:var(--sub);font-weight:700}
+.sw{width:52px;height:30px;border-radius:999px;border:0;background:var(--line);position:relative;flex:none}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:transform .15s}
+.sw[aria-pressed="true"]{background:var(--teal)}
+.sw[aria-pressed="true"]::after{transform:translateX(22px)}
+.sw:disabled{opacity:.5}
+.stepper{display:flex;align-items:center;gap:10px}
+.stepper b{font-size:22px;min-width:84px;text-align:center}
+.stepper .btn{min-width:48px;padding:0;font-size:22px}
+input[type=text]{font:inherit;width:100%;min-height:46px;border-radius:12px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);padding:0 12px}
+.saved{display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--line)}
+.saved .nm{flex:1;min-width:0;font-weight:700;overflow-wrap:anywhere}
+.saved .nm small{display:block;color:var(--sub);font-weight:400}
+/* cook */
+.dots{display:flex;gap:6px;flex:1;min-width:0}
+.dots i{flex:1;height:8px;border-radius:4px;background:var(--line)}
+.dots i.on{background:var(--teal)}
+.dots i.cur{background:var(--acc)}
+.simwrap{position:relative;border-radius:18px;overflow:hidden;background:#232326;box-shadow:var(--shadow)}
+#cv{display:block;width:100%;aspect-ratio:1/1;pointer-events:none}
+.simwrap.dragging{touch-action:none}
+.badge{position:absolute;left:10px;top:10px;background:rgba(0,0,0,.55);color:#fff;border-radius:999px;padding:3px 12px;font-size:13px;font-weight:700}
+.badge.warn{background:#b4570f}
+.hint{position:absolute;left:10px;right:10px;bottom:8px;text-align:center;color:#fff;font-size:12px;opacity:.75;pointer-events:none;text-shadow:0 1px 2px #000}
+.ctl{display:flex;flex-direction:column;gap:8px}
+.ctl .l{font-size:13px;font-weight:700;color:var(--sub);min-width:46px}
+.ctl .r{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.stepcard h3{font-size:22px;font-weight:900;line-height:1.35}
+.tag{display:inline-block;background:var(--teal-soft);color:var(--teal);border-radius:8px;padding:1px 10px;font-weight:700;font-size:13px}
+.stepcard .txt{font-size:18px;margin-top:6px}
+.tip{background:var(--teal-soft);border-radius:12px;padding:10px 12px;font-size:15px;margin-top:10px}
+.tip b{color:var(--teal)}
+.gauge{position:relative;height:16px;border-radius:8px;background:var(--chip);overflow:hidden;margin:6px 0 4px}
+.gauge i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#e9a1a0,#d9b489,#9b6038);border-radius:8px;transition:width .3s}
+.gauge.s i{background:linear-gradient(90deg,#c8402e,#6a3414)}
+.gauge .zone{position:absolute;top:0;bottom:0;border:2px solid var(--teal);background:rgba(43,122,105,.22);border-radius:6px}
+.stat{font-weight:700}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:10px max(16px,env(safe-area-inset-left,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));z-index:20}
+.bar>div{max-width:520px;margin:0 auto;display:flex;gap:10px}
+.bar .btn{min-height:54px;font-size:18px}
+.bar .main{flex:1}
+.refs{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
+.refs img{width:96px;height:96px;object-fit:cover;border-radius:12px;flex:none;border:1px solid var(--line)}
+.refs label.add{width:96px;height:96px;border-radius:12px;border:2px dashed var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;flex:none;color:var(--sub);font-size:13px;font-weight:700;cursor:pointer}
+.refs input{display:none}
+.lb{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px}
+.lb img{max-width:100%;max-height:70vh;border-radius:12px}
+.toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);border-radius:12px;padding:10px 16px;font-weight:700;z-index:60;max-width:90vw;font-size:14px}
+.done{text-align:center;padding:24px 8px}
+.done h2{font-size:30px;font-weight:900}
+details summary{font-weight:900;cursor:pointer;min-height:36px;display:flex;align-items:center}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div id="app">
+ <section id="sc-menu" class="stack">
+  <div class="hero"><h1>レシピシミュレータ</h1><p>動きを見ながら、自分の手元と同じペースで進める料理ガイド</p></div>
+  <div id="dishes" class="stack"></div>
+  <details class="card" id="backup">
+   <summary>データのバックアップ</summary>
+   <p class="sub" style="margin:4px 0 10px">保存した設定と参考写真を1つのファイルに書き出せます。端末を変えるときや、念のための控えに。</p>
+   <div class="row"><button class="btn sm" id="bkOut">書き出す</button><label class="btn sm" style="display:inline-flex;align-items:center">読み込む<input id="bkIn" type="file" accept=".json,application/json" hidden></label></div>
+  </details>
+ </section>
+
+ <section id="sc-setup" class="stack" hidden>
+  <div class="top"><button class="ico" id="setupBack" aria-label="メニューに戻る">←</button><h2 id="setupTitle"></h2></div>
+  <div class="card"><div class="stepper"><span class="sub" style="font-weight:700">人数</span><button class="btn" id="svMinus" aria-label="1人減らす">−</button><b id="svNum">2人前</b><button class="btn" id="svPlus" aria-label="1人増やす">＋</button></div></div>
+  <div id="ings" class="stack"></div>
+  <div class="card stack">
+   <b>設定を保存する</b>
+   <div class="row" style="flex-wrap:nowrap"><input type="text" id="svName" placeholder="名前（例：いつもの味）" maxlength="30" aria-label="保存名"><button class="btn teal" id="svSave" style="flex:none">保存</button></div>
+   <div id="svList"></div>
+  </div>
+  <div class="card stack"><b>完成のお手本写真</b><span class="sub">自分で撮った完成写真を置いておけます</span><div id="finalRefs"></div></div>
+ </section>
+
+ <section id="sc-cook" class="stack" hidden>
+  <div class="top"><button class="ico" id="cookBack" aria-label="設定に戻る">←</button><div class="dots" id="dots"></div><button class="ico" id="snd" aria-label="音" aria-pressed="true">🔊</button></div>
+  <div class="simwrap" id="simwrap"><canvas id="cv"></canvas><div class="badge" id="badge" hidden></div></div>
+  <div class="card stepcard" id="stepcard"></div>
+  <div class="card ctl">
+   <div class="row" id="heatRow"><span class="l">火力</span><div class="r" id="heat"></div></div>
+   <div id="tempRow"><div class="row" style="justify-content:space-between"><span class="l">フライパン</span><span class="stat" id="tempTxt" style="font-size:14px"></span></div><div class="gauge" style="margin:2px 0"><i id="tempBar" style="width:0;background:linear-gradient(90deg,#7aa8d6,#f0b34a,#e0482b)"></i><b class="zone" id="tempZone" style="left:60%;width:25%"></b></div></div>
+   <div class="row"><span class="l">速さ</span><div class="r" id="speed"></div></div>
+   <div class="row"><button class="btn sm" id="replay">↻ この手順をもう一度見る</button></div>
+  </div>
+  <div class="card stack"><b>この手順の参考写真</b><div id="stepRefs"></div></div>
+ </section>
+
+ <section id="sc-done" class="stack" hidden>
+  <div class="card"><img id="doneImg" alt="完成のようす" style="width:100%;display:block;border-radius:12px"></div>
+  <div class="card done"><h2>完成です</h2><p class="sub" style="margin-top:6px">おつかれさまでした。うまくいった点、気になった点は、あとで教えてください。</p></div>
+  <div class="card stack"><b>完成のお手本写真</b><div id="doneRefs"></div></div>
+  <div class="row"><button class="btn teal" id="again">もう一度つくる</button><button class="btn" id="toMenu">メニューへ</button></div>
+ </section>
+</div>
+
+<div class="bar" id="bar" hidden><div><button class="btn" id="prev">← 前へ</button><button class="btn main" id="next">できた！次へ →</button></div></div>
+<div class="bar" id="barSetup" hidden><div><button class="btn main" id="start">この設定でつくりはじめる →</button></div></div>
+<div id="lbHost"></div>
+<div id="toastHost"></div>
+
+<script>
+'use strict';
+/* ========== 保存 ========== */
+const mem={};
+function sget(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return (k in mem)?mem[k]:d}}
+function sset(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true}catch(e){mem[k]=v;return false}}
+const $=s=>document.querySelector(s);
+let toastT=0;
+function toast(m){const h=$('#toastHost');h.innerHTML='';const d=document.createElement('div');d.className='toast';d.textContent=m;h.appendChild(d);clearTimeout(toastT);toastT=setTimeout(()=>h.innerHTML='',2400)}
+function arm(btn,label,fn){ if(btn._arm){clearTimeout(btn._t);btn._arm=false;btn.classList.remove('armed');btn.textContent=btn._orig;fn();return}
+  btn._orig=btn.textContent;btn._arm=true;btn.classList.add('armed');btn.textContent=label;
+  btn._t=setTimeout(()=>{btn._arm=false;btn.classList.remove('armed');btn.textContent=btn._orig},3000)}
+
+/* ========== レシピ（ここを書き換えると内容が増やせる） ========== */
+function fr(n){const q=Math.round(n*4)/4,w=Math.floor(q),f=q-w;return (w?String(w):'')+({0:'',.25:'¼',.5:'½',.75:'¾'}[f])||'0'}
+const RECIPES=[{
+ id:'butakimchi',name:'豚キムチ',emoji:'🥘',time:'約10分',baseServings:2,
+ desc:'豚肉・キムチ・醤油だけのいちばん基本の作り方',
+ ingredients:[
+  {id:'pork',name:'豚肉',emoji:'🥩',required:true,fmt:s=>fr(s.servings)+'パック',
+   opts:[{k:'part',label:'部位',ch:[['momo','もも肉切り落とし'],['bara','バラ'],['koma','こま切れ'],['loin','ロース']],def:'momo'},
+         {k:'cut',label:'切り方（大きさ）',ch:[['s','小さめ'],['m','ふつう'],['l','大きめ']],def:'m'}]},
+  {id:'kimchi',name:'キムチ',emoji:'🥬',required:true,fmt:(s,o)=>{const f={less:.5,mid:1,more:1.5}[o.amt];return fr(f)+'パック（'+Math.round(440*f)+'g）'},
+   opts:[{k:'amt',label:'量',ch:[['less','半分くらい'],['mid','1パック丸ごと'],['more','多め']],def:'mid'},
+         {k:'cut',label:'大きさ',ch:[['fine','刻み（パックのまま）'],['bite','一口大'],['zaku','ざく切り']],def:'fine'}]},
+  {id:'soy',name:'醤油',emoji:'🍶',required:true,fmt:(s,o)=>rounds(s)+'回し',
+   opts:[{k:'rounds',label:'回しかける数',ch:[['auto','おまかせ'],['1','1回し'],['2','2回し']],def:'auto'}]},
+  {id:'rice',name:'ご飯',emoji:'🍚',required:false,def:true,fmt:(s,o)=>o.state==='cook'?o.go+'合':'',
+   opts:[{k:'state',label:'ご飯の状態',ch:[['ready','炊いてある'],['cook','これから炊く']],def:'ready'},{k:'go',label:'何合炊く？',show:o=>o.state==='cook',ch:[['1','1合'],['1.5','1.5合'],['2','2合'],['3','3合']],def:'1'},{k:'amt',label:'よそう量（自分）',ch:[['small','少なめ'],['mid','ふつう'],['large','大盛り']],def:'mid'},{k:'her',label:'よそう茶碗',ch:[['yes','自分と彼女の2つ'],['no','自分だけ']],def:'yes'},{k:'amtHer',label:'よそう量（彼女）',show:o=>o.her==='yes',ch:[['small','少なめ'],['mid','ふつう'],['large','大盛り']],def:'mid'}]},
+  {id:'oil',name:'オリーブオイル',emoji:'🫒',required:true,fmt:(s,o)=>({less:'小さじ1',mid:s.servings>2?'大さじ1½':'大さじ1',more:s.servings>2?'大さじ2':'大さじ1½'}[o.amt]),
+   opts:[{k:'amt',label:'量',ch:[['less','少なめ'],['mid','ふつう'],['more','多め']],def:'mid'}]},
+  {id:'nira',name:'ニラ',emoji:'🌿',required:false,def:false,fmt:s=>fr(s.servings*.5)+'束',
+   opts:[{k:'cut',label:'切り方',ch:[['4','4cm'],['2','2cm']],def:'4'}]},
+  {id:'sesame',name:'ごま油（仕上げ）',emoji:'🥄',required:false,def:false,fmt:()=>'小さじ1',opts:[]}
+ ],
+ riceStep:{id:'rice0',title:'ご飯を炊きはじめる',heat:0,noHeat:true,scene:'cooker',time:'約1分（炊飯は40分前後）',watch:'rice',actions:s=>['cooker'],
+   text:s=>`お米（${qty(s,'rice')}）を研いで、水を入れ、炊飯器のスイッチを入れます。`,
+   tip:'炊飯は40分くらいかかります。先にスイッチを入れておけば、豚キムチができるころに炊きあがります。'},
+ plateStep:{id:'plate',title:'お皿に盛り付ける',heat:0,noHeat:true,scene:'table',time:'約1分',watch:'none',actions:s=>['plate'],
+   text:s=>'火を止めて、フライパンから大きくて深い白いお皿に移します。',tip:'フライパンに残った汁も、かけると味がなじみます。'},
+ serveStep:{id:'serve',title:'ご飯をよそって完成',heat:0,noHeat:true,scene:'table',time:'約1分',watch:'none',actions:s=>['serve'],
+   text:s=>s.items.rice.opts.her==='yes'?'青い線の茶碗（自分）と、使い捨ての耐熱容器（彼女）にご飯をよそって、豚キムチのお皿と並べたら完成です。':'青い線の茶碗にご飯をよそって、豚キムチのお皿と並べたら完成です。',tip:'ご飯はふんわり山にすると、きれいに見えます。'},
+ steps:[
+  {id:'oil',title:'フライパンにオリーブオイルをしく',heat:1,heatNote:'弱火にかけて、温めはじめる',time:'約30秒',watch:'oil',
+   actions:s=>['oil'],
+   text:s=>`フライパンにオリーブオイル（${qty(s,'oil')}）を入れて、全体に広げます。`,
+   tip:'火をつけると、フライパンは余熱でじわじわ温まります。油を広げている間に温めておくと、お肉を入れたときにジュッと焼けます。ふちの近くまで薄く広げると、くっつきにくくなります。'},
+  {id:'pork',title:'豚肉を焼いて、焼き色がついたものから返す',heat:2,time:'1〜2分',watch:'sear',autoFlip:true,
+   actions:s=>['addPork'],
+   text:s=>`豚肉（${qty(s,'pork')}）を入れて、中火で焼きます。下に焼き色がついたものから順にひっくり返して、全体にうっすら色がついたら次へ進みます。`,
+   tip:'フライパンが温まってから入れると、ジュッと音がします。入れたらすぐ触らず、ふちが白っぽくなって下がうっすら茶色くなったものから、菜箸で1枚ずつ返します。重なっていたらほぐしながら。全部返して、全体に焼き色がついたらキムチへ。'},
+  {id:'kimchi',title:'キムチを入れて混ぜる',heat:2,time:'約1分',watch:'cook',
+   actions:s=>['addKimchi',...(s.items.nira.on?['addNira']:[]),'stir:10'],
+   text:s=>`お肉に火が通ったら、キムチ（${qty(s,'kimchi')}）${s.items.nira.on?'とニラ':''}を入れて、混ぜます。`,
+   tip:'大きく底からすくうように混ぜると、お肉にキムチの赤い汁が移っていきます。'},
+  {id:'steam',title:'蓋をして、汁が出るまで蒸す',heat:4,lid:true,time:'約1分',watch:'steam',
+   actions:s=>[],
+   text:s=>`お肉とキムチを軽く混ぜたら、蓋をして火を少しだけ弱めます（中弱）。ジュワーッと汁が出るまで蒸して、豚肉にしっかり火を通します。`,
+   tip:'蓋をすると中の温度が上がるので、火は中火より少し弱めでちょうど中火くらいの温度になります。ジュワーッと音がして、蓋の内側に水滴がつき、汁がぐつぐつしてきたら次へ。'},
+  {id:'soy',title:'蓋を開けて、醤油をひと回し',heat:4,lid:false,time:'約10秒',watch:'sauce',
+   actions:s=>['soy'],
+   text:s=>`蓋を開けて、醤油を${rounds(s)}回し程度かけます。${rounds(s)===2&&s.items.kimchi.opts.amt==='less'?'（キムチが少なめなので2回し）':''}`,
+   tip:'フライパンのふち寄りに、ぐるっとひと回し。かけたらすぐ蓋をします。'},
+  {id:'hold',title:'もう一度蓋をして、30秒蒸す',heat:4,lid:true,time:'約30秒',watch:'hold',
+   actions:s=>[],
+   text:s=>`蓋をして、30秒くらいじっくり蒸します。醤油が汁に溶けて、全体に行き渡ります。${s.items.sesame.on?'最後にごま油（'+qty(s,'sesame')+'）を回しかけて仕上げます。':''}`,
+   tip:'混ぜなくても、蒸気と汁で味がなじみます。30秒たったらすぐ火を止めて、お皿に盛り付けます。'}
+]
+}];
+const HEATS=[['切',0],['弱',1],['中弱',4],['中',2],['強',3]];
+
+function defaultSetup(r){const s={servings:r.baseServings,items:{}};r.ingredients.forEach(g=>{const o={};g.opts.forEach(p=>o[p.k]=p.def);s.items[g.id]={on:g.required||!!g.def,opts:o}});return s}
+function mergeSetup(r,saved){const s=defaultSetup(r);if(!saved)return s;s.servings=Math.min(4,Math.max(1,saved.servings|0||s.servings));
+  r.ingredients.forEach(g=>{const sv=saved.items&&saved.items[g.id];if(!sv)return;if(!g.required)s.items[g.id].on=!!sv.on;g.opts.forEach(p=>{if(sv.opts&&p.ch.some(c=>c[0]===sv.opts[p.k]))s.items[g.id].opts[p.k]=sv.opts[p.k]})});return s}
+let PREP={},PREPKEYS=[];function updStart(){const n=PREPKEYS.filter(k=>!PREP[k]).length,b=$('#start');if(!b)return;b.disabled=n>0;b.textContent=n>0?'準備するものにチェックしてね（あと'+n+'つ）':'この設定でつくりはじめる →'}
+let CUR=null,SET=null,STEP=0,STEPS=[];
+function buildSteps(r,st){const o=[],rc=st.items.rice;if(rc&&rc.on&&rc.opts.state==='cook')o.push(r.riceStep);o.push(...r.steps);o.push(r.plateStep);if(rc&&rc.on)o.push(r.serveStep);return o}
+function ing(id){return CUR.ingredients.find(g=>g.id===id)}
+function qty(s,id){const g=ing(id);return g.fmt(s,s.items[id].opts)}
+function rounds(st){const s=st||SET;const o=s.items.soy.opts.rounds;if(o!=='auto')return +o;const k=s.items.kimchi.on?s.items.kimchi.opts.amt:'less';return k==='less'?2:1}
+
+/* ========== 参考写真 ========== */
+function refKey(k){return 'gohan-ref:'+CUR.id+':'+k}
+function fileToData(f){return new Promise((res,rej)=>{const img=new Image(),u=URL.createObjectURL(f);img.onload=()=>{const m=720,sc=Math.min(1,m/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=Math.round(img.width*sc);c.height=Math.round(img.height*sc);c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(u);res(c.toDataURL('image/jpeg',.72))};img.onerror=()=>{URL.revokeObjectURL(u);rej(new Error('img'))};img.src=u})}
+function viewPhoto(src){const h=$('#lbHost');h.innerHTML='';const d=document.createElement('div');d.className='lb';d.innerHTML='<img alt="お手本写真"><div class="row"><button class="btn sm main" id="lbClose">とじる</button></div>';d.querySelector('img').src=src;h.appendChild(d);d.querySelector('#lbClose').onclick=()=>h.innerHTML='';d.onclick=e=>{if(e.target===d)h.innerHTML=''}}
+function renderRefs(host,key){
+  host.innerHTML='';const list=sget(refKey(key),[]);const w=document.createElement('div');w.className='refs';
+  (BREFS[key]||[]).filter(id=>PH[id]).forEach((id,i)=>{const im=document.createElement('img');im.src=PH[id];im.alt='お手本写真 '+(i+1);im.tabIndex=0;im.onclick=()=>viewPhoto(PH[id]);w.appendChild(im)});
+  list.forEach((d,i)=>{const im=document.createElement('img');im.src=d;im.alt='参考写真 '+(i+1);im.tabIndex=0;im.onclick=()=>lightbox(key,i,host);w.appendChild(im)});
+  const lb=document.createElement('label');lb.className='add';lb.innerHTML='<span style="font-size:24px">＋</span>写真を追加';
+  const inp=document.createElement('input');inp.type='file';inp.accept='image/*';inp.multiple=true;
+  inp.onchange=async()=>{let cur=sget(refKey(key),[]);let ok=true;for(const f of inp.files){try{cur.push(await fileToData(f))}catch(e){toast('読み込めない画像がありました')}}
+    if(!sset(refKey(key),cur)){ok=false;toast('保存できませんでした（容量がいっぱいかも）')} else toast('写真を保存しました');renderRefs(host,key)};
+  lb.appendChild(inp);w.appendChild(lb);host.appendChild(w)}
+function lightbox(key,i,host){
+  const list=sget(refKey(key),[]);if(!list[i])return;const h=$('#lbHost');h.innerHTML='';
+  const d=document.createElement('div');d.className='lb';d.innerHTML='<img alt="参考写真"><div class="row"><button class="btn sm" id="lbDel">この写真を削除</button><button class="btn sm main" id="lbClose">とじる</button></div>';
+  d.querySelector('img').src=list[i];h.appendChild(d);
+  d.querySelector('#lbClose').onclick=()=>h.innerHTML='';
+  d.onclick=e=>{if(e.target===d)h.innerHTML=''};
+  const del=d.querySelector('#lbDel');del.onclick=()=>arm(del,'もう一度押すと削除',()=>{const c=sget(refKey(key),[]);c.splice(i,1);sset(refKey(key),c);h.innerHTML='';renderRefs(host,key);toast('削除しました')})}
+
+/* ========== 画面 ========== */
+function show(id){if(id!=='cook')Snd.level(0);['menu','setup','cook','done'].forEach(n=>$('#sc-'+n).hidden=n!==id);$('#bar').hidden=id!=='cook';$('#barSetup').hidden=id!=='setup';
+  if(id!=='cook'&&sim)sim.paused=true;window.scrollTo(0,0)}
+function renderMenu(){const h=$('#dishes');h.innerHTML='';
+  RECIPES.forEach(r=>{const b=document.createElement('button');b.className='dish';b.innerHTML=`<span class="em">${r.emoji}</span><span><b></b><span class="sub"></span></span>`;
+    b.querySelector('b').textContent=r.name;b.querySelector('.sub').textContent=r.time+'・'+r.desc;b.onclick=()=>openSetup(r);h.appendChild(b)});
+  const o=document.createElement('div');o.className='dish off';o.innerHTML='<span class="em">＋</span><span><b>ほかの料理</b><span class="sub">これから追加していきます</span></span>';h.appendChild(o)}
+
+function openSetup(r){CUR=r;PREP={};SET=mergeSetup(r,sget('gohan-last:'+r.id,null));$('#setupTitle').textContent=r.name+'の準備';renderSetup();renderSaved();renderRefs($('#finalRefs'),'final');show('setup')}
+function renderSetup(){
+  $('#svNum').textContent=SET.servings+'人前';
+  const h=$('#ings');h.innerHTML='';
+  CUR.ingredients.forEach(g=>{const it=SET.items[g.id];const c=document.createElement('div');c.className='card ing'+(it.on?'':' off');
+    c.innerHTML=`<div class="head"><span class="artw"></span><b></b><span class="qty"></span></div>`;
+    {const w=c.querySelector('.artw'),mine=sget(refKey('ing:'+g.id),[])[0],dflt=(g.id==='kimchi'||g.id==='soy'||g.id==='oil'||(g.id==='pork'&&it.opts.part==='momo'))?PHOTOS[g.id]:null,src=mine||dflt;
+      if(src){const im=document.createElement('img');im.className='art';im.src=src;im.alt=g.name;w.appendChild(im)}else{const cv=document.createElement('canvas');cv.className='art';cv.width=cv.height=128;ingArt(cv,g.id,it.opts);w.appendChild(cv)}}
+    c.querySelector('b').textContent=g.name;
+    c.querySelector('.qty').textContent=it.on?g.fmt(SET,it.opts):'使わない';
+    const sw=document.createElement('button');sw.className='sw';sw.setAttribute('aria-pressed',it.on);sw.setAttribute('aria-label',g.name+'を使う');sw.disabled=g.required;
+    sw.onclick=()=>{it.on=!it.on;renderSetup()};c.querySelector('.head').appendChild(sw);
+    if(it.on)g.opts.forEach(p=>{if(p.show&&!p.show(it.opts))return;const o=document.createElement('div');o.className='opt';o.innerHTML='<label></label><div class="chips"></div>';o.querySelector('label').textContent=p.label;
+      p.ch.forEach(([v,l])=>{const b=document.createElement('button');b.className='chip';b.textContent=l;b.setAttribute('aria-pressed',it.opts[p.k]===v);b.onclick=()=>{it.opts[p.k]=v;renderSetup()};o.querySelector('.chips').appendChild(b)});c.appendChild(o)});
+    {const r=document.createElement('div');r.className='row';const mine=sget(refKey('ing:'+g.id),[])[0];
+      const lb=document.createElement('label');lb.className='btn sm';lb.textContent=mine?'📷 写真を変更':'📷 実物の写真を設定';const inp=document.createElement('input');inp.type='file';inp.accept='image/*';inp.hidden=true;
+      inp.onchange=async()=>{if(!inp.files[0])return;try{const d=await fileToData(inp.files[0]);if(!sset(refKey('ing:'+g.id),[d]))toast('保存できませんでした');else toast('写真を設定しました')}catch(e){toast('読み込めない画像でした')}renderSetup()};lb.appendChild(inp);r.appendChild(lb);
+      if(mine){const b=document.createElement('button');b.className='btn sm';b.textContent='元に戻す';b.onclick=()=>{sset(refKey('ing:'+g.id),[]);renderSetup()};r.appendChild(b)}c.appendChild(r)}
+    h.appendChild(c)});
+  {const c=document.createElement('div');c.className='card stack';c.innerHTML='<b>準備するもの</b><div class="sub">用意できたらチェックしてね</div>';
+    const rc=SET.items.rice&&SET.items.rice.on,cook=rc&&SET.items.rice.opts.state==='cook',her=rc&&SET.items.rice.opts.her==='yes';
+    const L=[['pan','フライパン','グレーの石目コート（外側はシルバー・黒い持ち手）'],['hash','菜箸','長い竹の菜箸（黒に赤・黄・緑の輪）'],['big','大きくて深い白いお皿','豚キムチ用']];
+    if(rc){L.push(['blue','青い線の茶碗','自分のご飯用']);if(her)L.push(['disp','使い捨ての耐熱容器','彼女のご飯用']);L.push(['paddle','しゃもじ','ご飯をよそう用（黒いギザギザ）']);if(cook)L.push(['cooker','炊飯器','お米・水の準備もね'])}
+    L.push(['lid','フライパンの蓋','ガラスの蓋（赤いつまみ）']);L.push(['chop','お箸（食べる用）','茶色の木のお箸']);L.push(['stove','ガスコンロ','']);
+    const chk=PREP;PREPKEYS=L.map(x=>x[0]);
+    L.forEach(([k,nm,sub])=>{const r=document.createElement('label');r.className='row';r.style.cssText='flex-wrap:nowrap;gap:10px;cursor:pointer';
+      const im=k.startsWith('e:')?'<div class="art" style="width:72px;height:56px;display:flex;align-items:center;justify-content:center;font-size:28px">'+k.slice(2)+'</div>':'<img class="art" style="width:72px;height:56px">';
+      r.innerHTML='<input type="checkbox" style="width:22px;height:22px;flex:none">'+im+'<div style="flex:1"><b style="font-size:15px"></b><div class="sub"></div></div>';
+      if(!k.startsWith('e:')){const imEl=r.querySelector('img');if(DISH[k])imEl.src=DISH[k];else{const ph=document.createElement('div');ph.className='art';ph.style.cssText='width:72px;height:56px;display:flex;align-items:center;justify-content:center;font-size:28px';ph.textContent=({pan:'🍳',chop:'🥢',hash:'🥢',big:'🍲',blue:'🍚',disp:'🍚',paddle:'🥄',cooker:'🍚',lid:'🫕',stove:'🔥'})[k]||'🍽';imEl.replaceWith(ph)}}r.querySelector('b').textContent=nm;r.querySelector('.sub').textContent=sub;
+      const cb=r.querySelector('input');cb.checked=!!chk[k];cb.onchange=()=>{chk[k]=cb.checked;updStart()};c.appendChild(r)});h.appendChild(c)}
+  sset('gohan-last:'+CUR.id,SET);updStart()}
+function renderSaved(){const h=$('#svList');h.innerHTML='';const all=sget('gohan-setups',[]).filter(x=>x.recipe===CUR.id);
+  if(!all.length){h.innerHTML='<p class="sub">保存した設定はまだありません</p>';return}
+  all.forEach(x=>{const d=document.createElement('div');d.className='saved';d.innerHTML='<div class="nm"></div>';
+    d.querySelector('.nm').innerHTML='<span></span><small></small>';d.querySelector('.nm span').textContent=x.name;d.querySelector('small').textContent=x.setup.servings+'人前・'+new Date(x.ts).toLocaleDateString('ja-JP');
+    const l=document.createElement('button');l.className='btn sm teal';l.textContent='読み込む';l.onclick=()=>{SET=mergeSetup(CUR,x.setup);$('#svName').value=x.name;renderSetup();toast('「'+x.name+'」を読み込みました')};
+    const del=document.createElement('button');del.className='btn sm';del.textContent='削除';del.onclick=()=>arm(del,'本当に削除',()=>{const a=sget('gohan-setups',[]).filter(y=>!(y.recipe===x.recipe&&y.name===x.name));sset('gohan-setups',a);renderSaved();toast('削除しました')});
+    d.appendChild(l);d.appendChild(del);h.appendChild(d)})}
+$('#svSave').onclick=()=>{const n=$('#svName').value.trim();if(!n){toast('保存する名前を入れてください');$('#svName').focus();return}
+  const a=sget('gohan-setups',[]);const i=a.findIndex(y=>y.recipe===CUR.id&&y.name===n);const rec={recipe:CUR.id,name:n,setup:JSON.parse(JSON.stringify(SET)),ts:Date.now()};
+  if(i>=0)a[i]=rec;else a.unshift(rec);const ok=sset('gohan-setups',a);renderSaved();toast(ok?(i>=0?'上書き保存しました':'保存しました'):'この環境では保存できませんでした')};
+$('#svMinus').onclick=()=>{SET.servings=Math.max(1,SET.servings-1);renderSetup()};
+$('#svPlus').onclick=()=>{SET.servings=Math.min(4,SET.servings+1);renderSetup()};
+$('#setupBack').onclick=()=>{renderMenu();show('menu')};
+$('#start').onclick=()=>{Snd.init();startCook()};
+
+/* ========== 料理画面 ========== */
+let sim=null;
+function startCook(){STEPS=buildSteps(CUR,SET);STEP=0;show('cook');if(!sim){sim=new Sim($('#cv'));sim.loop()}sim.paused=false;sim.config(SET);const rc=SET.items.rice;sim.riceOn=false;sim.riceProg=(rc&&rc.on&&rc.opts.state==='cook')?0:1;sim.resetTo(0);renderStep(true)}
+function toTop(){try{window.scrollTo(0,0);document.documentElement.scrollTop=0;document.body.scrollTop=0}catch(e){}}
+function renderStep(){toTop();
+  const st=STEPS[STEP];
+  $('#dots').innerHTML=STEPS.map((s,i)=>`<i class="${i<STEP?'on':i===STEP?'cur':''}"></i>`).join('');
+  const c=$('#stepcard');
+  c.innerHTML='<span class="tag"></span><h3 style="margin-top:6px"></h3><p class="txt"></p><div id="watch" style="margin-top:10px"></div><div class="tip"><b>コツ　</b><span></span></div>';
+  c.querySelector('.tag').textContent='手順 '+(STEP+1)+' / '+STEPS.length+'　目安 '+st.time;
+  c.querySelector('h3').textContent=st.title;c.querySelector('.txt').textContent=st.text(SET);c.querySelector('.tip span').textContent=st.tip;
+  renderRefs($('#stepRefs'),st.id);$('#heatRow').hidden=!!st.noHeat;$('#tempRow').hidden=!!st.noHeat;
+  $('#prev').disabled=STEP===0;$('#next').textContent=STEP===STEPS.length-1?'できた！完成へ →':'できた！次へ →';
+  setHeat(st.heat,true);renderHeat();
+}
+function renderHeat(){const st=STEPS[STEP];const h=$('#heat');h.innerHTML='';HEATS.forEach(([l,v])=>{const b=document.createElement('button');b.className='chip'+(v===st.heat?' rec':'');b.textContent=l;b.setAttribute('aria-pressed',sim.heat===v);b.onclick=()=>{setHeat(v);renderHeat()};h.appendChild(b)});
+  if(st.heatNote){const n=document.createElement('span');n.className='sub';n.textContent=st.heatNote;h.appendChild(n)}}
+function setHeat(v,fromStep){sim.setHeat(v)}
+(function(){const h=$('#speed');[[1,'×1（実時間）'],[4,'×4'],[8,'×8']].forEach(([v,l])=>{const b=document.createElement('button');b.className='chip';b.textContent=l;b.setAttribute('aria-pressed',v===1);b.onclick=()=>{if(sim)sim.speed=v;[...h.children].forEach(x=>x.setAttribute('aria-pressed',x===b))};h.appendChild(b)})})();
+function goStep(i,replay){STEP=i;sim.resetTo(i);renderStep()}
+$('#next').onclick=()=>{Snd.init();if(STEP>=STEPS.length-1){finish();return}if(STEPS[STEP].id==='rice0'&&sim.riceProg<1)sim.riceOn=true;STEP++;sim.beginStep(STEP);renderStep()};
+$('#prev').onclick=()=>{if(STEP>0)goStep(STEP-1)};
+$('#replay').onclick=()=>{Snd.init();goStep(STEP)};
+$('#cookBack').onclick=()=>{const b=$('#cookBack');arm(b,'戻る？',()=>{sim.paused=true;show('setup')})};
+$('#snd').onclick=()=>{Snd.on=!Snd.on;$('#snd').setAttribute('aria-pressed',Snd.on);$('#snd').textContent=Snd.on?'🔊':'🔇';Snd.init()};
+function finish(){Snd.level(0);sim.draw();try{$('#doneImg').src=sim.cv.toDataURL('image/jpeg',.88)}catch(e){}sim.paused=true;renderRefs($('#doneRefs'),'final');show('done')}
+$('#again').onclick=()=>openSetup(CUR);
+$('#toMenu').onclick=()=>{renderMenu();show('menu')};
+
+/* 状況表示（0.25秒ごと） */
+function porkWord(v){return v<.1?'ほぼ生':v<.26?'色が変わりはじめ':v<.55?'ちょっと火が通った':v<.85?'しっかり火が通った':v<1.05?'こんがり':'焦げそう！'}
+setInterval(()=>{ if(!sim||$('#sc-cook').hidden)return;
+  const st=STEPS[STEP],w=$('#watch');if(!w)return;const q=sim.stats();
+  let html='';
+  if(st.watch==='oil'){const v=q.oil;html=`<div class="stat">油の広がり：${v<.3?'中央だけ':v<.75?'広がってきた':'ほぼ全体'}</div><div class="gauge"><i style="width:${Math.round(v*100)}%;background:linear-gradient(90deg,#f5e08a,#e8b630)"></i></div>`}
+  else if(st.watch==='bottom'){const v=q.bottom,z=st.zone;const inz=v>=z[0]&&v<=z[1];
+    html=`<div class="stat">下の面：${q.hasPork?(v<.2?'まだ生っぽい':v<.5?'色が変わってきた':v<=.8?'焼き色がついた':'焼きすぎ注意')+(inz?'　← 返しどき':''):'（まだ入れていません）'}</div><div class="gauge"><i style="width:${Math.min(100,Math.round(v/1.2*100))}%"></i><b class="zone" style="left:${z[0]/1.2*100}%;width:${(z[1]-z[0])/1.2*100}%"></b></div>`}
+  else if(st.watch==='none'){html=''}
+  else if(st.watch==='sear'){const n=q.nPork,f=q.nFlip,v=q.cook,ok=n>0&&f>=n&&v>=.33;html=`<div class="stat">ひっくり返した：${n?f+' / '+n+'枚':'（まだ入れていません）'}</div><div class="gauge"><i style="width:${n?Math.round(f/n*100):0}%;background:linear-gradient(90deg,#9fd3c7,#2a7a67)"></i></div><div class="stat" style="margin-top:8px">お肉全体：${n?porkWord(v)+(ok?'　← キムチへ進むタイミング':f<n?'（焼き色がついたものから返しています）':''):''}</div><div class="gauge"><i style="width:${Math.min(100,Math.round(v/1.2*100))}%"></i><b class="zone" style="left:${.33/1.2*100}%;width:${.5/1.2*100}%"></b></div>`}
+  else if(st.watch==='steam'){const v=q.steamProg;html=`<div class="stat">汁：${!q.lidOn?'蓋をしてね':q.temp<.35?'温まるのを待っています':v<.3?'蒸気がたまってきた':v<.7?'汁がにじんできた':v<1?'もうすぐジュワーッ！':'ジュワーッと汁が出た！　← 次へ'}</div><div class="gauge"><i style="width:${Math.round(v*100)}%;background:linear-gradient(90deg,#f0b27a,#c0392b)"></i></div><div class="stat" style="margin-top:8px">お肉：${porkWord(q.cook)}</div><div class="gauge"><i style="width:${Math.min(100,Math.round(q.cook/1.2*100))}%"></i></div>`}
+  else if(st.watch==='hold'){const v=q.holdProg,sec=Math.ceil((1-v)*30);html=`<div class="stat">蒸し時間：${v>=1?'30秒たった！　← 火を止めて盛り付けへ':'あと約'+sec+'秒'+(sim.speed>1?'（'+sim.speed+'倍速中）':'')}</div><div class="gauge"><i style="width:${Math.round(v*100)}%;background:linear-gradient(90deg,#cfe3ee,#7fb3c8)"></i></div><div class="stat" style="margin-top:8px">醤油の行き渡り：${q.sauce<.3?'まだ一部':q.sauce<.8?'広がってきた':'全体に行き渡った'}</div><div class="gauge s"><i style="width:${Math.round(q.sauce*100)}%"></i></div>`}
+  else if(st.watch==='rice'){const v=q.riceProg;html=`<div class="stat">炊飯：${!q.riceOn?'スイッチを入れる前':v>=1?'炊きあがり':'炊飯中（あと約'+Math.ceil((1-v)*40)+'分'+(sim&&sim.speed>1?'・'+sim.speed+'倍速中':'')+'）'}</div><div class="gauge"><i style="width:${Math.round(v*100)}%;background:linear-gradient(90deg,#cfe3ee,#fffdf6)"></i></div>`}
+  else if(st.watch==='glaze'){const v=q.glaze,z=st.zone;const inz=v>=z[0]&&v<=z[1];
+    html=`<div class="stat">焼き具合：${v<.2?'まだ汁っぽい':v<.5?'汁気が減ってきた':v<=.85?'照りが出て香ばしい':'焦げそう！'}${inz?'　← ここで完成':''}</div><div class="gauge"><i style="width:${Math.min(100,Math.round(v/1.2*100))}%;background:linear-gradient(90deg,#d9a36a,#7a3f18)"></i><b class="zone" style="left:${z[0]/1.2*100}%;width:${(z[1]-z[0])/1.2*100}%"></b></div>`}
+  else if(st.watch==='cook'){const v=q.cook;const z=st.zone;const inz=z&&v>=z[0]&&v<=z[1];
+    html=`<div class="stat">お肉：${q.hasPork?porkWord(v)+(inz?'　← 次へ進むタイミング':''):'（まだ入れていません）'}</div><div class="gauge"><i style="width:${Math.min(100,Math.round(v/1.2*100))}%"></i>${z?`<b class="zone" style="left:${z[0]/1.2*100}%;width:${(z[1]-z[0])/1.2*100}%"></b>`:''}</div>`}
+  else {const v=q.sauce;const ok=v>=(st.zoneS||.8);html=`<div class="stat">醤油の行き渡り：${q.hasSauce?(v<.3?'まだ一部':v<.8?'広がってきた':'全体に行き渡った！'):'（まだかけていません）'}</div><div class="gauge s"><i style="width:${Math.round(v*100)}%"></i><b class="zone" style="left:${(st.zoneS||.8)*100}%;right:0"></b></div>`;
+    if(st.glazeToo&&q.hasSauce){const g=q.glaze;html+=`<div class="stat" style="margin-top:8px">焼き具合：${g<.2?'まだ汁っぽい':g<.5?'汁気が減ってきた':g<=.85?'照りが出て香ばしい':'焦げそう！'}</div><div class="gauge"><i style="width:${Math.min(100,Math.round(g/1.2*100))}%;background:linear-gradient(90deg,#d9a36a,#7a3f18)"></i><b class="zone" style="left:${.4/1.2*100}%;width:${.45/1.2*100}%"></b></div>`}}
+  if(w._h!==html){w.innerHTML=html;w._h=html}
+  const b=$('#badge');let msg='';if(q.stickWarn&&!q.lidOn)msg='油が足りず、くっつきやすい状態';else if(q.cold)msg='フライパンが温まる前です（焼き色がつきにくい）';else if(q.lidOn&&q.temp>.88)msg='蓋の中が熱すぎます。少し火を弱めましょう';else if(q.burnt&&!q.lidOn)msg='焦げそうです。火を弱めるか混ぜましょう';
+  {const t=q.temp;$('#tempBar').style.width=Math.round(t*100)+'%';const oilS=st.id==='oil',z=$('#tempZone');if(z){z.style.left=oilS?'40%':'60%';z.style.width=oilS?'18%':'25%'}
+    $('#tempTxt').textContent=(oilS?(t<.12?'冷たい':t<.4?'温まりはじめ':t<=.6?'ちょうどいい（弱火で温まった）':'かなり熱い'):(t<.12?'冷たい':t<.45?'温まりはじめ':t<.6?'あと少し':t<=.85?'ちょうどいい（中火の温度）':'かなり熱い'))+'　'+Math.round(t*100)+'%'}
+  if(sim.scene!=='pan'||(sim.tb&&sim.tb.on))msg='';
+  b.hidden=!msg;b.textContent=msg;b.classList.toggle('warn',!!msg)},250);
+
+/* ========== 音 ========== */
+document.addEventListener('visibilitychange',()=>{if(document.hidden)Snd.level(0)});
+const Snd={ctx:null,on:true,g:null,init(){try{if(this.ctx){if(this.ctx.state==='suspended')this.ctx.resume();return}
+    const A=window.AudioContext||window.webkitAudioContext;if(!A)return;const c=this.ctx=new A();const len=c.sampleRate*2,b=c.createBuffer(1,len,c.sampleRate),d=b.getChannelData(0);for(let i=0;i<len;i++)d[i]=Math.random()*2-1;
+    const s=c.createBufferSource();s.buffer=b;s.loop=true;const f=c.createBiquadFilter();f.type='highpass';f.frequency.value=2800;const f2=c.createBiquadFilter();f2.type='lowpass';f2.frequency.value=9000;
+    const g=this.g=c.createGain();g.gain.value=0;s.connect(f);f.connect(f2);f2.connect(g);g.connect(c.destination);s.start()}catch(e){}},
+  level(v){if(!this.g)return;try{this.g.gain.setTargetAtTime(this.on?v:0,this.ctx.currentTime,.15)}catch(e){}}};
+
+/* ========== 材料のイラスト（写真が無いときはシミュレーションと同じ描き方で表示） ========== */
+const PH={};
+const BREFS={oil:['a'],pork:['b','c'],flip:['d'],kimchi:['e','f'],steam:['g','h'],soy:['i'],hold:['j'],plate:['k','l'],serve:['m','n','o'],rice0:['p','o'],final:['m','n','k']};
+const DISH={};
+const PHOTOS={};
+function porkShape(part){const fatty=part==='momo'&&Math.random()<.14,e=part==='momo'?(Math.random()<.4?[{u:(Math.random()<.5?-1:1)*rnd(.7,.9),w:rnd(.22,.34)}]:[]).concat(Math.random()<.4?[{u:rnd(-.4,.4),w:.05}]:[]):null;
+  return {fatty,a1:rnd(.03,part==='koma'?.16:part==='momo'?.2:.07),k1:rnd(2,4),p1:rnd(0,6),a2:rnd(.02,.05),k2:rnd(4,7),p2:rnd(0,6),
+   st:fatty?[{u:rnd(-.3,.3),w:.38,lean:true}]:part==='momo'?e:part==='bara'?[-.62,-.12,.4,.88].map(u=>({u:u+rnd(-.1,.1),w:rnd(.07,.15)})):part==='loin'?[{u:-.9,w:.14}]:[],
+   dots:part==='koma'?[0,1,2].map(()=>({x:rnd(-.6,.6),y:rnd(-.4,.4),r:rnd(.08,.16)})):[]}}
+let RICE=null;
+function riceTex(){if(RICE)return RICE;const S=256,c=document.createElement('canvas');c.width=c.height=S;const x=c.getContext('2d'),cx=128,cy=128,R=124;
+  const g=x.createRadialGradient(cx-30,cy-40,5,cx,cy,R);g.addColorStop(0,'#fffefb');g.addColorStop(.6,'#f5f1e6');g.addColorStop(1,'#c9c3b0');x.fillStyle=g;x.beginPath();x.arc(cx,cy,R,0,7);x.fill();
+  let sd=7;const rn=()=>{sd=(sd*16807)%2147483647;return sd/2147483647};
+  for(let i=0;i<1100;i++){const a=rn()*6.283,d=Math.sqrt(rn())*R*.98,gx=cx+Math.cos(a)*d,gy=cy+Math.sin(a)*d,lit=1-Math.min(1,Math.hypot(gx-(cx-30),gy-(cy-40))/(R*1.25));
+    x.save();x.translate(gx,gy);x.rotate(rn()*3.14);const gr=x.createLinearGradient(0,-4,0,4);gr.addColorStop(0,'#ffffff');const dk=1-lit;gr.addColorStop(1,`rgb(${228-34*dk|0},${222-34*dk|0},${206-36*dk|0})`);
+    x.fillStyle=gr;x.strokeStyle='rgba(120,110,92,.38)';x.lineWidth=.8;x.beginPath();x.ellipse(0,0,9.5,4.6,0,0,7);x.fill();x.stroke();x.restore()}
+  const v=x.createRadialGradient(cx,cy,R*.55,cx,cy,R);v.addColorStop(0,'rgba(90,80,60,0)');v.addColorStop(1,'rgba(90,80,60,.38)');x.fillStyle=v;x.beginPath();x.arc(cx,cy,R,0,7);x.fill();
+  const h=x.createRadialGradient(cx-34,cy-42,0,cx-34,cy-42,60);h.addColorStop(0,'rgba(255,255,255,.55)');h.addColorStop(1,'rgba(255,255,255,0)');x.fillStyle=h;x.beginPath();x.arc(cx,cy,R,0,7);x.fill();
+  return RICE=c}
+function porkLite(ctx,p){const PP=Sim.prototype.porkPath;ctx.save();ctx.shadowColor='rgba(0,0,0,.3)';ctx.shadowBlur=2;ctx.shadowOffsetY=1;PP.call(null,ctx,p,0,1);const col=lerpStops(PORK_STOPS,0);ctx.fillStyle=rgb(p.sh.fatty?[252,238,234]:col);ctx.fill();ctx.shadowColor='transparent';
+  const pa=PP.call(null,ctx,p,0,1);ctx.save();ctx.clip();
+  if(TEX.ok&&!p.sh.fatty){ctx.save();ctx.globalCompositeOperation='soft-light';ctx.globalAlpha=.5;ctx.fillStyle=TEX.pat(ctx);ctx.fillRect(-60,-60,120,120);ctx.restore()}
+  ctx.lineCap='round';for(const st of p.sh.st){ctx.strokeStyle=st.lean?rgb(col):'rgba(252,238,234,.95)';ctx.lineWidth=p.h*st.w;ctx.beginPath();for(let i=0;i<=10;i++){const t=-.97+1.94*i/10;i?ctx.lineTo(t*pa.hw,pa.y(t,st.u)):ctx.moveTo(t*pa.hw,pa.y(t,st.u))}ctx.stroke()}
+  for(const d of p.sh.dots){ctx.fillStyle='rgba(252,238,234,.9)';ctx.beginPath();ctx.ellipse(d.x*pa.hw,d.y*p.h,d.r*p.h*1.3,d.r*p.h*.8,0,0,7);ctx.fill()}
+  ctx.restore();PP.call(null,ctx,p,0,1);ctx.strokeStyle='rgba(240,200,190,.9)';ctx.lineWidth=1;ctx.stroke();ctx.restore()}
+function bottle(x,c,o){const {body,cap,label,h=40,w=22,liquid}=o;x.save();x.shadowColor='rgba(0,0,0,.35)';x.shadowBlur=4;x.shadowOffsetY=2;
+  x.fillStyle=body;x.beginPath();x.roundRect(32-w/2,60-h,w,h,5);x.fill();x.beginPath();x.roundRect(32-5,60-h-10,10,14,3);x.fill();x.shadowColor='transparent';
+  x.fillStyle=cap;x.beginPath();x.roundRect(32-6,60-h-15,12,8,2);x.fill();
+  x.fillStyle=label;x.beginPath();x.roundRect(32-w/2+2,60-h*.62,w-4,h*.4,2);x.fill();x.fillStyle=o.band||'#c7372a';x.fillRect(32-w/2+2,60-h*.5,w-4,5);
+  x.fillStyle='rgba(255,255,255,.35)';x.beginPath();x.roundRect(32-w/2+3,60-h+4,3,h-10,1.5);x.fill();x.restore()}
+function ingArt(cv,id,opts){const ctx=cv.getContext('2d'),k=cv.width/64;ctx.setTransform(k,0,0,k,0,0);ctx.clearRect(0,0,64,64);
+  let sd=11;const rn=()=>{sd=(sd*16807)%2147483647;return sd/2147483647};
+  if(id==='pork'){ctx.fillStyle='#f3f3ef';ctx.strokeStyle='#cfcfc7';ctx.lineWidth=1;ctx.beginPath();ctx.roundRect(3,8,58,48,6);ctx.fill();ctx.stroke();
+    const part=opts.part,[bw,bh]={momo:[46,28],bara:[64,30],koma:[42,28],loin:[56,40]}[part],sc={s:.8,m:1,l:1.25}[opts.cut]*.5;
+    const pos=[[18,20],[44,19],[30,31],[17,42],[44,41],[31,50]];pos.forEach((q,i)=>{const w=bw*sc*(part==='momo'?.75+rn()*.6:1),h=bh*sc*(part==='momo'?.8+rn()*.5:1);ctx.save();ctx.translate(q[0],q[1]);ctx.rotate(rn()*3.14);porkLite(ctx,{w,h,sh:porkShape(part)});ctx.restore()})}
+  else if(id==='kimchi'){ctx.save();ctx.shadowColor='rgba(0,0,0,.3)';ctx.shadowBlur=4;ctx.shadowOffsetY=2;ctx.fillStyle='#d9a82c';ctx.beginPath();ctx.arc(32,32,29,0,7);ctx.fill();ctx.restore();
+    ctx.fillStyle='#8a2a1a';ctx.beginPath();ctx.arc(32,32,25,0,7);ctx.fill();
+    const f=opts.cut==='zaku'?1.7:opts.cut==='bite'?1.2:.8;ctx.save();ctx.beginPath();ctx.arc(32,32,25,0,7);ctx.clip();
+    for(let i=0;i<70;i++){const a=rn()*6.28,d=Math.sqrt(rn())*24;ctx.save();ctx.translate(32+Math.cos(a)*d,32+Math.sin(a)*d);ctx.rotate(rn()*3.14);ctx.fillStyle=rgb(mix([186,60,34],[214,100,56],rn()),.95);ctx.beginPath();ctx.ellipse(0,0,(4+rn()*3)*f,(2.4+rn()*1.6)*f,0,0,7);ctx.fill();ctx.restore()}
+    if(TEXK.ok){ctx.globalCompositeOperation='soft-light';ctx.globalAlpha=.7;ctx.fillStyle=TEXK.pat(ctx);ctx.fillRect(0,0,64,64)}ctx.restore();
+    ctx.strokeStyle='rgba(255,255,255,.35)';ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(32,32,27,3.6,4.6);ctx.stroke()}
+  else if(id==='soy')bottle(ctx,32,{body:'#2d3f9a',cap:'#c9a64a',label:'#f4f6fa',band:'#c7372a',h:42,w:22});
+  else if(id==='oil')bottle(ctx,32,{body:'#e0b13a',cap:'#2f7d4f',label:'#f4efe4',band:'#2f7d4f',h:42,w:22});
+  else if(id==='sesame')bottle(ctx,32,{body:'#9a5a1a',cap:'#d9a82c',label:'#f4efe4',band:'#9a5a1a',h:32,w:18});
+  else if(id==='rice'){ctx.save();ctx.shadowColor='rgba(0,0,0,.3)';ctx.shadowBlur=4;ctx.shadowOffsetY=2;ctx.fillStyle='#f4f1e8';ctx.beginPath();ctx.arc(32,32,29,0,7);ctx.fill();ctx.restore();
+    if(opts.state==='cook'){ctx.fillStyle='#a8a79f';ctx.beginPath();ctx.arc(32,32,24,0,7);ctx.fill();for(let i=0;i<90;i++){const a=rn()*6.28,d=Math.sqrt(rn())*22;ctx.save();ctx.translate(32+Math.cos(a)*d,32+Math.sin(a)*d);ctx.rotate(rn()*3.14);ctx.fillStyle=`rgb(${226+rn()*20|0},${220+rn()*20|0},${205+rn()*20|0})`;ctx.beginPath();ctx.ellipse(0,0,3.2,1.6,0,0,7);ctx.fill();ctx.restore()}}
+    else{ctx.strokeStyle='#3d5f93';ctx.lineWidth=1.4;ctx.beginPath();ctx.arc(32,32,26,0,7);ctx.stroke();ctx.fillStyle='#d6d1c4';ctx.beginPath();ctx.arc(32,32,22,0,7);ctx.fill();ctx.save();ctx.beginPath();ctx.arc(32,32,19,0,7);ctx.clip();ctx.drawImage(riceTex(),13,13,38,38);ctx.restore()}}
+  else if(id==='nira'){ctx.lineCap='round';for(let i=0;i<9;i++){const a=-.55+i*.14+rn()*.05;ctx.strokeStyle=rgb(mix([66,140,52],[110,178,70],rn()));ctx.lineWidth=3.4;ctx.beginPath();ctx.moveTo(26+i*1.4,58);ctx.quadraticCurveTo(26+Math.sin(a)*14,36,28+Math.sin(a)*34+i*1.2,6+rn()*4);ctx.stroke()}
+    ctx.fillStyle='#e8d9a0';ctx.fillRect(24,44,18,4)}}
+
+/* ========== シミュレーション ========== */
+const M=Matter;
+const TEXK={ok:false,img:new Image(),pat(c){return this._p||(this._p=c.createPattern(this.img,'repeat'))}};TEXK.img.onload=()=>{TEXK.ok=true;if(CUR&&!$('#sc-setup').hidden)renderSetup()};TEXK.img.src='data:image/jpeg;base64,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';
+const TEX={ok:false,img:new Image(),pat(c){return this._p||(this._p=c.createPattern(this.img,'repeat'))}};TEX.img.onload=()=>{TEX.ok=true;if(CUR&&!$('#sc-setup').hidden)renderSetup()};TEX.img.src='data:image/jpeg;base64,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';
+const PORK_STOPS=[[0,[216,122,126]],[.25,[236,198,180]],[.5,[222,182,132]],[.8,[170,106,58]],[1.1,[92,50,24]],[1.4,[40,24,14]]];
+function lerpStops(S,c){c=Math.max(0,c);for(let i=1;i<S.length;i++){if(c<=S[i][0]||i===S.length-1){const a=S[i-1],b=S[i],t=Math.min(1,(c-a[0])/(b[0]-a[0]));return [a[1][0]+(b[1][0]-a[1][0])*t,a[1][1]+(b[1][1]-a[1][1])*t,a[1][2]+(b[1][2]-a[1][2])*t]}}}
+const rgb=(c,a)=>`rgba(${c[0]|0},${c[1]|0},${c[2]|0},${a==null?1:a})`;
+const mix=(a,b,t)=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];
+const rnd=(a,b)=>a+Math.random()*(b-a);
+const ease=u=>u<0?0:u>1?1:u*u*(3-2*u);
+
+class Sim{
+  constructor(cv){
+    this.cv=cv;this.ctx=cv.getContext('2d');this.W=460;this.C={x:230,y:230};this.R=168;
+    this.eng=M.Engine.create({gravity:{x:0,y:0,scale:0}});
+    this.G=24;this.cs=this.R*2/this.G;this.L=new Float32Array(this.G*this.G);this.K=new Float32Array(this.G*this.G);
+    this.lqk=document.createElement('canvas');this.lqk.width=this.lqk.height=this.G;this.lqkx=this.lqk.getContext('2d');this.lqki=this.lqkx.createImageData(this.G,this.G);
+    this.lq=document.createElement('canvas');this.lq.width=this.lq.height=this.G;this.lqx=this.lq.getContext('2d');this.lqi=this.lqx.createImageData(this.G,this.G);
+    const N=40;for(let i=0;i<N;i++){const a=i/N*Math.PI*2,r=this.R+22;M.Composite.add(this.eng.world,M.Bodies.rectangle(this.C.x+Math.cos(a)*r,this.C.y+Math.sin(a)*r,44,this.R*2*Math.PI/N*1.3,{isStatic:true,angle:a,restitution:.15,friction:0}))}
+    this.sp=M.Bodies.rectangle(-400,-400,8,46,{chamfer:{radius:3},frictionAir:0,friction:.05,restitution:0,label:'spat'});M.Body.setMass(this.sp,80);M.Body.setInertia(this.sp,Infinity);M.Composite.add(this.eng.world,this.sp);
+    this.spOn=false;this.spX=0;this.spY=0;this.spA=0;this.sa=0;
+    M.Events.on(this.eng,'collisionActive',e=>{for(const p of e.pairs){const a=p.bodyA.plugin.piece,b=p.bodyB.plugin.piece;if(!a||!b)continue;
+      const m=(a.sauce+b.sauce)/2;a.sauce+=(m-a.sauce)*.03;b.sauce+=(m-b.sauce)*.03;
+      if(a.t==='kimchi'&&b.t==='pork')b.red=Math.min(1,b.red+.0045);else if(b.t==='kimchi'&&a.t==='pork')a.red=Math.min(1,a.red+.0045);
+      else if(a.t==='pork'&&b.t==='pork'){const r=(a.red+b.red)/2;a.red+=(r-a.red)*.01;b.red+=(r-b.red)*.01}}});
+    this.speed=1;this.heat=1;this.heatT=.35;this.temp=0;this.paused=false;this.manualStir=false;this.autoStir=false;this.drag=null;
+    this.pieces=[];this.steam=[];this.tasks=[];this.cur=null;this.oil={r:0,max:0,seed:Math.random()*6};this.pour=null;this.drops=[];this.tilt=0;this.acc=0;this.last=0;this.t=0;this.time=0;this.cfg=null;
+    this.resize();new ResizeObserver(()=>this.resize()).observe(cv);
+  }
+  pt(e){const r=this.cv.getBoundingClientRect();return {x:(e.clientX-r.left)/r.width*this.W,y:(e.clientY-r.top)/r.height*this.W}}
+  resize(){const w=this.cv.clientWidth||460,d=Math.min(2,window.devicePixelRatio||1);this.cv.width=this.cv.height=Math.round(w*d)}
+  setHeat(v){this.heat=v;this.heatT=[0,.5,.7,1,.55][v]}
+  config(s){this.cfg=s;const m={less:.72,mid:.95,more:1};this.oil.max=this.R*m[s.items.oil.opts.amt]}
+
+  /* --- 材料を置く --- */
+  makePiece(t,w,h,x,y,extra){
+    if(extra&&extra.vary){w*=rnd(.72,1.35);h*=rnd(.75,1.3)}
+    const p=Object.assign({t,w,h,side:Math.random()<.5?1:0,c:[0,0],sauce:0,glaze:0,red:0,flip:0,z:0,fall:0,delay:0,body:null,stick:false,seed:Math.random()*10,
+      pts:[[-1,-1],[1,-1],[1,1],[-1,1]].map(([a,b])=>[a*w/2*1.12+rnd(-1.8,1.8),b*h/2*1.15+rnd(-1.2,1.2)])},extra||{});
+    if(p.mk)p.sh=p.mk();p.x0=x;p.y0=y;return p}
+  attach(p,landed){
+    const b=M.Bodies.rectangle(p.x0,p.y0,p.w*.92,p.h*.88,{chamfer:{radius:Math.min(p.h/2-1,5)},angle:rnd(0,Math.PI*2),frictionAir:p.stick?.35:.12,friction:.4,restitution:.05,density:.002,isSensor:!landed,plugin:{piece:p}});
+    p.body=b;M.Composite.add(this.eng.world,b)}
+  free(x,y,r){for(const q of this.pieces)if(Math.hypot(q.x0-x,q.y0-y)<r)return false;return true}
+  spawn(type,count,w,h,instant,extra){
+    const R=this.R-26;let made=0;
+    for(let i=0;i<count;i++){let x,y,n=0,rad=Math.max(w,h)*.62;
+      do{const a=rnd(0,Math.PI*2),r=Math.sqrt(Math.random())*(R-Math.max(w,h)*.3);x=this.C.x+Math.cos(a)*r;y=this.C.y+Math.sin(a)*r;n++}while(!this.free(x,y,rad)&&n<60);
+      const p=this.makePiece(type,w,h,x,y,extra);
+      if(instant){p.z=0;p.delay=0;this.attach(p,true)}else{p.delay=rnd(0,.9);p.z=0;p.fall=-1}
+      this.pieces.push(p);made++}
+    return made}
+  stuckNow(){return this.oil.r<this.oil.max*.55||this.oil.r<this.R*.5}
+  addPork(instant){
+    const o=this.cfg.items.pork.opts,sc={s:.8,m:1,l:1.25}[o.cut],part=o.part;
+    const [bw,bh]={momo:[46,28],bara:[64,30],koma:[42,28],loin:[56,40]}[part];const w=bw*sc,h=bh*sc;
+    let n=Math.round(this.cfg.servings*10/(sc*sc)*(part==='koma'?1.3:part==='loin'?.8:part==='momo'?1.15:1));
+    n=Math.min(n,Math.floor(.34*Math.PI*this.R*this.R/(w*h)));
+    const sh=()=>{const fatty=part==='momo'&&Math.random()<.14,e=part==='momo'?(Math.random()<.4?[{u:(Math.random()<.5?-1:1)*rnd(.7,.9),w:rnd(.22,.34)}]:[]).concat(Math.random()<.4?[{u:rnd(-.4,.4),w:.05}]:[]):null;return {fatty,a1:rnd(.03,part==='koma'?.16:part==='momo'?.2:.07),k1:rnd(2,4),p1:rnd(0,6),a2:rnd(.02,.05),k2:rnd(4,7),p2:rnd(0,6),
+      st:fatty?[{u:rnd(-.3,.3),w:.38,lean:true}]:part==='momo'?e:part==='bara'?[-.62,-.12,.4,.88].map(u=>({u:u+rnd(-.1,.1),w:rnd(.07,.15)})).slice(0,Math.random()<.3?3:4):part==='loin'?[{u:-.9,w:.14}]:[],
+      dots:part==='koma'?[0,1,2].map(()=>({x:rnd(-.6,.6),y:rnd(-.4,.4),r:rnd(.08,.16)})):[]}};
+    this.spawn('pork',n,w,h,instant,{part,stick:this.stuckNow(),mk:sh,vary:part==='momo'});
+    if(instant)this.pieces.filter(p=>p.t==='pork').forEach(p=>{p.c=[.55,.55];p.flipped=true})}
+  addKimchi(instant){
+    const o=this.cfg.items.kimchi.opts,cut=o.cut,[w,h,per]={zaku:[70,26,14],bite:[46,22,22],fine:[27,15,34]}[cut];
+    const f={less:.5,mid:1,more:1.5}[o.amt];const n=Math.min(70,Math.round(f*per));
+    this.spawn('kimchi',n,w,h,instant,{vary:true});
+    if(instant)this.pieces.filter(p=>p.t==='kimchi').forEach(p=>this.addLiq(p.x0,p.y0,.35,this.K))}
+  addNira(instant){const o=this.cfg.items.nira.opts.cut;const [w,per]=o==='4'?[52,4]:[26,8];this.spawn('nira',Math.round(this.cfg.servings*per*.9),w,5.5,instant,{})}
+  clearAll(){this.steamProg=0;this.holdProg=0;this.lidOn=false;this.lidA=0;for(const p of this.pieces)if(p.body)M.Composite.remove(this.eng.world,p.body);this.tb=null;this.pieces=[];this.L.fill(0);this.K.fill(0);this.steam=[];this.drops=[];this.tasks=[];this.cur=null;this.pour=null;this.oil.r=0;this.tilt=0;this.autoStir=false;this.spOn=false;M.Body.setPosition(this.sp,{x:-400,y:-400});this.manualStir=false;const b=$('#stir');if(b){b.setAttribute('aria-pressed','false');b.classList.remove('teal')}}
+  instant(name){
+    if(name==='oil')this.oil.r=this.oil.max;
+    else if(name==='addPork')this.addPork(true);
+    else if(name==='addKimchi')this.addKimchi(true);
+    else if(name==='addNira')this.addNira(true);
+    else if(name==='cooker')this.riceOn=true;
+    else if(name==='plate')this.startPlate(true);
+    else if(name==='soy'){const n=rounds(this.cfg);for(let a=0;a<Math.PI*2*n;a+=.12){const q=this.soyPt(a/(Math.PI*2)*3,n);this.addLiq(q.x,q.y,.22);this.soak(q.x,q.y,.13)}}
+  }
+  resetTo(i){this.rIdx=i;this.clearAll();this.temp=i===0?0:i===1?.3:this.heatT;const steps=STEPS;this.heatAfter=null;
+    for(let k=0;k<i;k++)steps[k].actions(this.cfg).forEach(a=>{const n=a.split(':')[0];if(n!=='stir')this.instant(n)});
+    // 瞬間配置したあと、少し物理を進めて落ち着かせる
+    for(let k=0;k<20;k++)M.Engine.update(this.eng,1000/60);{const si=STEPS.findIndex(x=>x.id==='steam'),hi=STEPS.findIndex(x=>x.id==='hold');if(si>=0&&si<i)this.steamProg=1;if(hi>=0&&hi<i)this.holdProg=1}
+    const si=STEPS.findIndex(x=>x.id==='sear'),mi=STEPS.findIndex(x=>x.id==='mix'),ri=STEPS.findIndex(x=>x.id==='rice0');
+    if(ri>=0&&i<=ri){this.riceOn=false;this.riceProg=0}
+    if(i>mi)for(const p of this.pieces)if(p.t!=='nira'){p.sauce=Math.max(p.sauce,.85);if(i>si)p.glaze=.62}
+    this.beginStep(i)}
+  beginStep(i){const st=STEPS[i];this.autoFlip=!!st.autoFlip;this.flipT=1;this.lidOn=!!st.lid;const si=STEPS.findIndex(x=>x.id==='steam'),hi=STEPS.findIndex(x=>x.id==='hold');if(i<=si)this.steamProg=0;if(i<=hi)this.holdProg=0;if(this.rIdx===i)this.lidA=this.lidOn?1:0;this.scene=st.scene==='cooker'?'cooker':'pan';this.setHeat(st.heat);this.tasks=st.actions(this.cfg).map(a=>{const [n,v]=a.split(':');return {n,v:+v||0,t:-1}});this.cur=null}
+
+  /* --- 液体 --- */
+  gi(x,y){const gx=Math.floor((x-(this.C.x-this.R))/this.cs),gy=Math.floor((y-(this.C.y-this.R))/this.cs);if(gx<0||gy<0||gx>=this.G||gy>=this.G)return -1;return gy*this.G+gx}
+  addLiq(x,y,a,A){A=A||this.L;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const i=this.gi(x+dx*this.cs*.8,y+dy*this.cs*.8);if(i>=0)A[i]=Math.min(1.2,A[i]+a*(dx||dy?.35:1))}}
+  soak(x,y,a){for(const p of this.pieces){if(!p.body)continue;if(Math.hypot(p.x0-x,p.y0-y)<30)p.sauce=Math.min(1,p.sauce+a)}}
+  liqStep(stirring){const lid=this.lidA>.9,k=stirring?.2:(lid&&this.temp>.4&&this.steamProg>.3?.15:.07),ev=1-.0003*this.speed*Math.max(.15,this.temp/.7)*(1-.85*this.lidA);
+    this.diff(this.L,this._tmp||(this._tmp=new Float32Array(this.G*this.G)),k,ev);this.diff(this.K,this._tmp2||(this._tmp2=new Float32Array(this.G*this.G)),k,ev)}
+  diff(L,tmp,k,ev){const G=this.G;
+    for(let y=0;y<G;y++)for(let x=0;x<G;x++){const i=y*G+x,v=L[i];if(v<.0005&&!(x>0&&L[i-1]>.01)&&!(x<G-1&&L[i+1]>.01)&&!(y>0&&L[i-G]>.01)&&!(y<G-1&&L[i+G]>.01)){tmp[i]=v;continue}
+      const l=x>0?L[i-1]:v,r=x<G-1?L[i+1]:v,u=y>0?L[i-G]:v,d=y<G-1?L[i+G]:v;tmp[i]=v+k*((l+r+u+d)/4-v)}
+    L.set(tmp);for(let i=0;i<L.length;i++)L[i]*=ev}
+
+  /* --- 注ぐ --- */
+  soyPt(t,n){const turn=Math.min(n-1,Math.floor(t/3)),a=-Math.PI/2+(t/3)*Math.PI*2,r=[128,86,60][turn];return {x:this.C.x+Math.cos(a)*r,y:this.C.y+Math.sin(a)*r,a}}
+
+  /* --- タスク --- */
+  runTasks(dt){
+    if(!this.cur&&this.tasks.length){this.cur=this.tasks.shift();this.cur.t=0;const c=this.cur;
+      if(c.n==='addPork')this.addPork(false);else if(c.n==='addKimchi')this.addKimchi(false);else if(c.n==='addNira')this.addNira(false);
+      if(c.n==='plate')this.startPlate(false);if(c.n==='serve'&&this.tb)this.tb.sv={t:0,nb:this.bowls(),done:false};if(c.n==='cooker'){this.riceOn=false;this.riceProg=0}
+      if(c.n==='stir')this.autoStir=true;if(c.n==='flipAll')this.pieces.forEach(p=>{if(p.t==='pork')p.fd=rnd(.15,1.7)});if(c.n==='oil'){this.oil.r=0;this.oil.seed=Math.random()*6}}
+    const c=this.cur;if(!c){this.pour=null;this.bottle=null;return}
+    c.t+=dt;
+    if(c.n==='oil'){ if(c.t<1.2){this.oil.r=5+16*(c.t/1.2);this.bottle={x:this.C.x+70,y:this.C.y-70,tx:this.C.x,ty:this.C.y,k:'oil',s:Math.min(1,c.t*4)}}
+        else{const u=ease((c.t-1.2)/2.8);this.oil.r=21+(this.oil.max-21)*u;this.tilt=Math.sin((c.t-1.2)*6)*3*(1-u);this.bottle=null}
+        if(c.t>4){this.oil.r=this.oil.max;this.tilt=0;this.cur=null}}
+    else if(c.n==='soy'){const n=rounds(this.cfg),D=3*n;
+        if(c.t<D){const q=this.soyPt(c.t,n);this.bottle={x:q.x+55,y:q.y-52,tx:q.x,ty:q.y,k:'soy',s:1};
+          this.addLiq(q.x+rnd(-4,4),q.y+rnd(-4,4),.2);this.soak(q.x,q.y,.004);this.soyBurst=.6}
+        else{this.bottle=null}
+        if(c.t>D+.5)this.cur=null}
+    else if(c.n==='stir'){ if(c.t>c.v){this.autoStir=false;this.cur=null}}
+    else if(c.n==='plate'){if(this.tb&&this.tb.t>this.tb.end)this.cur=null}
+    else if(c.n==='serve'){const sv=this.tb&&this.tb.sv;if(!sv||sv.t>1+this.offS(sv.nb)*1.3+.9){if(sv)sv.done=true;this.cur=null}}
+    else if(c.n==='cooker'){if(c.t>3.8){this.riceOn=true;this.cur=null}}
+    else if(c.n==='flipAll'){if(c.t>3)this.cur=null}
+    else { if(c.t>1.4)this.cur=null }
+  }
+
+  /* --- ヘラ --- */
+  spatStep(h){
+    let tx=null,ty=null;
+    if(this.drag){tx=this.drag.x;ty=this.drag.y}
+    else if(this.autoStir||this.manualStir){this.sc=(this.sc||0)+h/1.7;const k=Math.floor(this.sc),ph=this.sc-k,C=this.C,P=(r,a)=>({x:C.x+Math.cos(a)*r,y:C.y+Math.sin(a)*r}),th=k*2.4+.4;
+      if(ph<.62){const u=ease(ph/.62),q=P(124-98*u,th+.32*u);tx=q.x;ty=q.y;this.spUp=false}
+      else{const u=ease((ph-.62)/.38),a=P(26,th+.32),b=P(124,(k+1)*2.4+.4),nx=a.x+(b.x-a.x)*u,ny=a.y+(b.y-a.y)*u;const ddx=nx-this.spX,ddy=ny-this.spY;if(Math.hypot(ddx,ddy)>.5)this.spA=Math.atan2(ddy,ddx);this.spX=nx;this.spY=ny;this.spUp=true;if(this.spOn){this.spOn=false;M.Body.setPosition(this.sp,{x:-400,y:-400});M.Body.setVelocity(this.sp,{x:0,y:0})}this.spSpeed=0;return}}
+    if(tx==null){this.spUp=false;if(this.spOn){this.spOn=false;M.Body.setPosition(this.sp,{x:-400,y:-400});M.Body.setVelocity(this.sp,{x:0,y:0})}return}
+    const dx0=tx-this.C.x,dy0=ty-this.C.y,d0=Math.hypot(dx0,dy0),lim=this.R-10;if(d0>lim){tx=this.C.x+dx0/d0*lim;ty=this.C.y+dy0/d0*lim}
+    if(!this.spOn){this.spOn=true;this.spX=tx;this.spY=ty;M.Body.setPosition(this.sp,{x:tx,y:ty})}
+    let dx=tx-this.spX,dy=ty-this.spY;const d=Math.hypot(dx,dy),mx=7;if(d>mx){dx*=mx/d;dy*=mx/d}
+    this.spX+=dx;this.spY+=dy;M.Body.setPosition(this.sp,{x:this.spX,y:this.spY});M.Body.setVelocity(this.sp,{x:dx,y:dy});
+    if(Math.hypot(dx,dy)>.4){let a=Math.atan2(dy,dx);let da=a-this.spA;da=Math.atan2(Math.sin(da),Math.cos(da));this.spA+=da*.2;M.Body.setAngle(this.sp,this.spA)}
+    this.spSpeed=Math.hypot(dx,dy);
+    for(const p of this.pieces){if(!p.body||p.z>0)continue;const q=p.body.position;if(Math.hypot(q.x-this.spX,q.y-this.spY)<40&&this.spSpeed>1.6&&Math.random()<.035)this.flipPiece(p)}
+  }
+  flipPiece(p){if(p.flip>0||p.fd>0)return;p.side^=1;p.flip=1;p.fr=3;p.bd=Math.random()<.5?1:-1}
+
+  /* --- 更新 --- */
+  update(dt){
+    this.time+=dt;if(this.tb&&this.tb.on){this.tb.t+=dt;if(this.tb.sv&&!this.tb.sv.done)this.tb.sv.t+=dt}
+    if(this.riceOn)this.riceProg=Math.min(1,this.riceProg+dt*this.speed/2400);
+    this.runTasks(dt);
+    if(this.autoFlip&&this.temp>.25){this.flipT-=dt*Math.max(1,this.speed);if(this.flipT<=0){let best=null,bv=.35;for(const p of this.pieces){if(p.t!=='pork'||!p.body||p.z>0||p.flipped||p.flip>0||p.fd>0)continue;const v=p.c[1-p.side];if(v>=bv){bv=v;best=p}}if(best){best.flipped=true;best.fd=.05;this.flipT=rnd(1.8,2.8)}else this.flipT=.3}}
+    {const la=this.lidOn?Math.min(1,this.lidA+dt*2.2):Math.max(0,this.lidA-dt*2.2);this.lidA=la;const tgt=Math.min(1,this.heatT*(1+.3*la));this.temp+=(tgt-this.temp)*Math.min(1,dt*Math.max(1,this.speed)/(tgt>this.temp?6:35));
+      const cs=STEPS[STEP]?STEPS[STEP].id:'';if(la>.95){const f=Math.max(0,Math.min(1.6,(this.temp-.25)/.3));if(cs==='steam'&&this.pieces.some(p=>p.body))this.steamProg=Math.min(1,this.steamProg+dt*this.speed*f/60);if(cs==='hold'&&this.temp>.4)this.holdProg=Math.min(1,this.holdProg+dt*this.speed/30)}}
+    // 空から降りてくる食材
+    for(const p of this.pieces){
+      if(p.delay>0){p.delay-=dt;if(p.delay<=0&&!p.body){p.fall=.38;p.z=46;this.attach(p,false)}continue}
+      if(p.fall>0){p.fall-=dt;p.z=Math.max(0,46*p.fall/.38);if(p.fall<=0){p.z=0;M.Body.set(p.body,'isSensor',false);if(p.t==='pork'){this.sizzleBurst=Math.min(1,.2+this.temp);this.temp=Math.max(0,this.temp-.01)}if(p.t==='kimchi')this.addLiq(p.x0,p.y0,.7,this.K)}}
+      if(p.fd>0){p.fd-=dt;if(p.fd<=0){p.side^=1;p.flip=1;p.fr=1.7;p.bd=Math.random()<.5?1:-1}}
+      if(p.flip>0)p.flip=Math.max(0,p.flip-dt*(p.fr||2.5));
+    }
+    // 物理
+    this.acc+=dt;let n=0;
+    while(this.acc>=1/60&&n<3){this.spatStep(1/60);M.Engine.update(this.eng,1000/60);this.acc-=1/60;n++;this.liqStep(!!(this.spOn))}
+    if(this.acc>.05)this.acc=0;
+    // 火の通り・液体の吸収
+    const sp=dt*this.speed,tf=this.temp/.7;let moving=0,hot=0;
+    for(const p of this.pieces){
+      if(!p.body||p.z>0)continue;
+      const q=p.body.position;p.x=q.x;p.y=q.y;p.x0=q.x;p.y0=q.y;
+      const onOil=Math.hypot(q.x-this.C.x,q.y-this.C.y)<this.oil.r?1:.55;if(p.t==='kimchi'&&this.lidA>.9&&this.temp>.35&&this.steamProg<1&&Math.random()<.25)this.addLiq(q.x,q.y,.012*Math.min(1,this.speed/2)*(.3+this.steamProg),this.K);
+      const dn=1-p.side,up=p.side;
+      if(p.t==='pork'){const r=sp/65*tf*onOil;p.c[dn]+=r;if(p.c[dn]>.3)p.c[up]+=r*.4*Math.min(1,(p.c[dn]-.3)*2);p.c[0]=Math.min(1.5,p.c[0]);p.c[1]=Math.min(1.5,p.c[1]);hot+=tf>.2?1:0}
+      else if(p.t==='kimchi'){p.c[0]+=sp/180*tf;p.c[1]=p.c[0]}
+      else if(p.t==='nira'){p.c[0]+=sp/150*tf;p.c[1]=p.c[0]}
+      if((p.t==='pork'||p.t==='kimchi')&&p.sauce>.3)p.glaze=Math.min(1.3,p.glaze+sp/110*tf*Math.min(1,p.sauce));
+      const i=this.gi(q.x,q.y);if(i>=0){const tk=Math.min(this.K[i]*.4,.02);this.K[i]-=tk;if(p.t==='pork')p.red=Math.min(1,p.red+tk*1.8);const take=Math.min(this.L[i]*.4,.02);this.L[i]-=take;p.sauce=Math.min(1,p.sauce+take*1.5);
+        if(p.sauce>.5&&this.L[i]<.35*p.sauce&&p.body.speed>.6)this.L[i]+=.004}
+      if(p.stick&&p.body.speed<.2&&Math.random()<.002*dt*60&&this.oil.r>this.oil.max*.55)p.stick=false;
+      moving+=p.body.speed
+    }
+    // 湯気
+    if(hot&&this.temp>.25&&Math.random()<Math.min(1,hot*.05*this.temp)){const p=this.pieces[Math.floor(Math.random()*this.pieces.length)];if(p&&p.body&&p.z===0)this.steam.push({x:p.x,y:p.y,vx:rnd(-6,6),vy:rnd(-24,-12),l:1,r:rnd(7,13)})}
+    for(const s of this.steam){s.x+=s.vx*dt;s.y+=s.vy*dt;s.l-=dt*.7;s.r+=dt*14}
+    this.steam=this.steam.filter(s=>s.l>0);if(this.steam.length>90)this.steam.splice(0,this.steam.length-90);
+    // 音
+    if(this.tb&&this.tb.on){Snd.level(0);return}
+    if(this.sizzleBurst>0)this.sizzleBurst=Math.max(0,this.sizzleBurst-dt*.7);if(this.soyBurst>0)this.soyBurst=Math.max(0,this.soyBurst-dt*.9);
+    const cnt=this.pieces.filter(p=>p.body).length;
+    Snd.level(this.paused?0:Math.min(.07,(cnt?.012+Math.min(.03,cnt*.0012):0)*this.temp/.7+this.sizzleBurst*.05+(this.soyBurst||0)*.05));
+  }
+
+  stats(){
+    const pk=this.pieces.filter(p=>p.t==='pork'&&p.body),all=this.pieces.filter(p=>(p.t==='pork'||p.t==='kimchi')&&p.body);
+    let cook=0;for(const p of pk)cook+=(p.c[0]+p.c[1])/2;cook=pk.length?cook/pk.length:0;
+    let ss=0;for(const p of all)if(p.sauce>.3)ss++;
+    let gl=0;for(const p of all)gl+=Math.min(1.3,p.glaze||0);gl=all.length?gl/all.length:0;let bt=0;for(const p of pk)bt+=Math.max(p.c[0],p.c[1]);bt=pk.length?bt/pk.length:0;
+    return {oil:Math.min(1,this.oil.r/(this.R*.95)),cook,bottom:bt,glaze:gl,riceProg:this.riceProg,riceOn:this.riceOn,steamProg:this.steamProg,holdProg:this.holdProg,lidOn:this.lidOn&&this.lidA>.9,hasPork:pk.length>0,nPork:pk.length,nFlip:pk.filter(p=>p.flipped).length,sauce:all.length?ss/all.length:0,hasSauce:all.some(p=>p.sauce>.05),
+      stickWarn:pk.some(p=>p.stick),temp:this.temp,cold:pk.length>0&&this.temp<.45&&!(this.tb&&this.tb.on),burnt:pk.some(p=>(p.c[0]+p.c[1])/2>.95)||gl>1.0}}
+
+  /* --- 描画 --- */
+  draw(){
+    const ctx=this.ctx,k=this.cv.width/this.W,C=this.C,R=this.R;ctx.setTransform(k,0,0,k,0,0);
+    if(this.scene==='cooker'){this.drawCooker(ctx);return}
+    const tb=this.tb,tbOn=!!(tb&&tb.on),k1=tbOn?ease(Math.min(1,tb.t)):0,k2=tbOn&&tb.sv?ease(Math.min(1,tb.sv.t)):0;
+    // コンロ台
+    const bg=ctx.createLinearGradient(0,0,0,this.W);bg.addColorStop(0,'#303034');bg.addColorStop(1,'#1f1f22');ctx.fillStyle=bg;ctx.fillRect(0,0,this.W,this.W);
+    const gl=ctx.createRadialGradient(C.x,C.y,R,C.x,C.y,R+46);gl.addColorStop(0,`rgba(255,130,40,${this.temp*.65})`);gl.addColorStop(1,'rgba(255,130,40,0)');ctx.globalAlpha=1-k1;ctx.fillStyle=gl;ctx.fillRect(0,0,this.W,this.W);ctx.globalAlpha=1;
+    if(tbOn){ctx.save();ctx.globalAlpha=k1;const wg=ctx.createLinearGradient(0,0,0,this.W);wg.addColorStop(0,'#7a5338');wg.addColorStop(1,'#573a27');ctx.fillStyle=wg;ctx.fillRect(0,0,this.W,this.W);ctx.strokeStyle='rgba(0,0,0,.18)';ctx.lineWidth=2;for(let y=70;y<this.W;y+=92){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(this.W,y);ctx.stroke()}ctx.restore()}
+    if(1-k2>.01){ctx.save();ctx.globalAlpha=1-k2;if(k1>0){const ps=1-.45*k1,px=C.x+(118-C.x)*k1,py=C.y+(118-C.y)*k1;ctx.translate(px,py);ctx.scale(ps,ps);ctx.translate(-C.x,-C.y)}
+    ctx.save();ctx.translate(this.tilt,this.tilt*.6);
+    // 持ち手
+    ctx.save();ctx.translate(C.x,C.y);ctx.rotate(Math.PI/4);const hg=ctx.createLinearGradient(0,-14,0,14);hg.addColorStop(0,'#3b3d42');hg.addColorStop(.5,'#202226');hg.addColorStop(1,'#15161a');ctx.fillStyle=hg;
+    ctx.beginPath();ctx.roundRect(R+4,-12,150,24,10);ctx.fill();ctx.fillStyle='#8c9199';for(const x of [R+22,R+40]){ctx.beginPath();ctx.arc(x,0,3.2,0,7);ctx.fill()}ctx.restore();
+    // 外側・ふち
+    const rim=ctx.createLinearGradient(C.x-R,C.y-R,C.x+R,C.y+R);rim.addColorStop(0,'#a2a7ae');rim.addColorStop(.5,'#5a5e66');rim.addColorStop(1,'#33363c');
+    ctx.fillStyle=rim;ctx.beginPath();ctx.arc(C.x,C.y,R+16,0,7);ctx.fill();ctx.fillStyle='#202226';ctx.beginPath();ctx.arc(C.x,C.y,R+5,0,7);ctx.fill();
+    const fl=ctx.createRadialGradient(C.x-40,C.y-50,10,C.x,C.y,R);fl.addColorStop(0,'#4a4e56');fl.addColorStop(1,'#2c2f35');ctx.fillStyle=fl;ctx.beginPath();ctx.arc(C.x,C.y,R,0,7);ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.035)';ctx.lineWidth=1;for(let r=30;r<R;r+=26){ctx.beginPath();ctx.arc(C.x,C.y,r,0,7);ctx.stroke()}
+    ctx.save();ctx.beginPath();ctx.arc(C.x,C.y,R,0,7);ctx.clip();
+    this.drawOil(ctx);
+    {const id=this.lqki.data;for(let i=0;i<this.K.length;i++){const v=this.K[i];id[i*4]=196;id[i*4+1]=52;id[i*4+2]=22;id[i*4+3]=Math.min(175,v*270)}this.lqkx.putImageData(this.lqki,0,0);ctx.imageSmoothingEnabled=true;ctx.drawImage(this.lqk,C.x-R,C.y-R,R*2,R*2)}
+    // 醤油の液
+    const id=this.lqi.data;for(let i=0;i<this.L.length;i++){const v=this.L[i];id[i*4]=88;id[i*4+1]=38;id[i*4+2]=12;id[i*4+3]=Math.min(205,v*300)}
+    this.lqx.putImageData(this.lqi,0,0);ctx.imageSmoothingEnabled=true;ctx.drawImage(this.lq,C.x-R,C.y-R,R*2,R*2);
+    if(!tbOn)for(const t of ['nira','pork','kimchi'])for(const p of this.pieces)if(p.t===t)this.drawPiece(ctx,p);
+    if(!tbOn&&this.lidOn&&this.steamProg>.45&&this.temp>.4){const nb=Math.round(26*Math.min(1,(this.steamProg-.3)*1.6));ctx.fillStyle='rgba(255,230,200,.55)';ctx.strokeStyle='rgba(120,50,20,.5)';ctx.lineWidth=1;for(let i=0;i<nb;i++){const a=Math.random()*6.283,rr=Math.sqrt(Math.random())*(R-14),bx=C.x+Math.cos(a)*rr,by=C.y+Math.sin(a)*rr,bs=1.5+Math.random()*3;ctx.beginPath();ctx.arc(bx,by,bs,0,7);ctx.fill();ctx.stroke()}}
+    ctx.restore();ctx.restore();ctx.restore()}
+    if(tbOn){this.drawPlate(ctx,k1);for(const p of this.pieces.filter(p=>p.body&&p.pl).sort((a,b)=>a.pl.d-b.pl.d))this.drawPiece(ctx,p,this.tpos(p));this.drawBowl(ctx,k2);this.drawPaddle(ctx);return}
+    // 湯気
+    for(const s of this.steam){const g=ctx.createRadialGradient(s.x,s.y,0,s.x,s.y,s.r);g.addColorStop(0,`rgba(255,255,255,${.16*s.l})`);g.addColorStop(1,'rgba(255,255,255,0)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,7);ctx.fill()}
+    this.drawLid(ctx);if(this.lidA<.5)this.drawSpat(ctx);this.drawBottle(ctx);
+  }
+  drawLid(ctx){const a=this.lidA;if(a<.02)return;const C=this.C,R=this.R,e=ease(a),sp=this.steamProg,ox=(1-e)*170,oy=-(1-e)*170,x=C.x+ox,y=C.y+oy,r=R+14;
+    ctx.save();ctx.globalAlpha=Math.min(1,a*1.6);ctx.shadowColor='rgba(0,0,0,.4)';ctx.shadowBlur=14;ctx.shadowOffsetY=8;
+    ctx.fillStyle=`rgba(205,215,222,${.14+.3*sp})`;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();ctx.shadowColor='transparent';
+    if(sp>.05){ctx.save();ctx.beginPath();ctx.arc(x,y,r-3,0,7);ctx.clip();const n=Math.round(70*sp);for(let i=0;i<n;i++){const q=i*2.399,rr=Math.sqrt((i+.5)/70)*(r-8),dx=x+Math.cos(q)*rr,dy=y+Math.sin(q)*rr,s=2+(i%4)*1.1;const g=ctx.createRadialGradient(dx-s*.3,dy-s*.3,0,dx,dy,s);g.addColorStop(0,'rgba(255,255,255,.7)');g.addColorStop(1,'rgba(230,200,160,.35)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(dx,dy,s,0,7);ctx.fill()}ctx.restore()}
+    ctx.strokeStyle='#c7ccd2';ctx.lineWidth=5;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.stroke();ctx.strokeStyle='rgba(255,255,255,.55)';ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,r-4,3.6,5.0);ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,.2)';ctx.beginPath();ctx.ellipse(x+r*.42,y+r*.38,r*.2,r*.14,.7,0,7);ctx.fill();
+    ctx.fillStyle='#9aa0a8';ctx.beginPath();ctx.arc(x+r*.58,y-r*.5,4.5,0,7);ctx.fill();ctx.fillStyle='#3a3d42';ctx.beginPath();ctx.arc(x+r*.58,y-r*.5,2,0,7);ctx.fill();
+    const kg=ctx.createRadialGradient(x-6,y-6,2,x,y,24);kg.addColorStop(0,'#ef5a52');kg.addColorStop(1,'#b81f27');ctx.shadowColor='rgba(0,0,0,.35)';ctx.shadowBlur=8;ctx.shadowOffsetY=5;ctx.fillStyle=kg;ctx.beginPath();ctx.arc(x,y,22,0,7);ctx.fill();
+    ctx.beginPath();ctx.ellipse(x,y-4,22,10,-.5,0,7);ctx.fillStyle='#d9343a';ctx.fill();ctx.shadowColor='transparent';ctx.fillStyle='rgba(255,255,255,.35)';ctx.beginPath();ctx.ellipse(x-6,y-9,7,3,-.5,0,7);ctx.fill();
+    ctx.restore()}
+  /* ---- ご飯・盛り付け ---- */
+  tpos(p){const C=this.C,tb=this.tb,t=tb.t,k1=ease(Math.min(1,t)),ps=1-.45*k1,pcx=C.x+(118-C.x)*k1,pcy=C.y+(118-C.y)*k1;
+    const sx=pcx+(p.px-C.x)*ps,sy=pcy+(p.py-C.y)*ps;
+    if(t<p.pl.d)return {x:sx,y:sy,a:p.pa,s:ps,lift:0};
+    const fx=118+(p.px-C.x)*.55,fy=118+(p.py-C.y)*.55,u=Math.min(1,(t-p.pl.d)/.75),e=ease(u);
+    let da=p.pl.ta-p.pa;da=Math.atan2(Math.sin(da),Math.cos(da));
+    return {x:fx+(p.pl.tx-fx)*e,y:fy+(p.pl.ty-fy)*e-Math.sin(Math.PI*u)*34,a:p.pa+da*e,s:.55+.07*e,lift:Math.sin(Math.PI*u)*12}}
+  startPlate(instant){const ps=this.pieces.filter(p=>p.body).sort(()=>Math.random()-.5),n=ps.length,PL={x:330,y:330},placed=[];
+    ps.forEach((p,i)=>{p.px=p.body.position.x;p.py=p.body.position.y;p.pa=p.body.angle;M.Body.setStatic(p.body,true);
+      let tx,ty,k=0;do{const a=rnd(0,6.283),r=Math.sqrt(Math.random())*(p.t==='kimchi'?50:56);tx=PL.x+Math.cos(a)*r;ty=PL.y+Math.sin(a)*r*.92;k++}while(k<25&&placed.some(q=>Math.hypot(q[0]-tx,q[1]-ty)<9));
+      placed.push([tx,ty]);p.pl={d:1.15+i*(2.4/Math.max(1,n)),tx,ty,ta:rnd(0,6.283)}});
+    this.tb={on:true,t:instant?99:0,sv:null,end:1.15+2.4+.9}}
+  drawPlate(ctx,a){const x=330,y=330;ctx.save();ctx.globalAlpha=a;ctx.shadowColor='rgba(0,0,0,.5)';ctx.shadowBlur=16;ctx.shadowOffsetY=10;
+    const g=ctx.createRadialGradient(x-26,y-30,10,x,y,116);g.addColorStop(0,'#fbfcfb');g.addColorStop(1,'#dfe3e0');ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,116,0,7);ctx.fill();ctx.shadowColor='transparent';
+    ctx.strokeStyle='rgba(120,130,125,.3)';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(x,y,100,0,7);ctx.stroke();
+    const w=ctx.createRadialGradient(x+14,y+18,6,x,y,98);w.addColorStop(0,'#c3cac6');w.addColorStop(.55,'#dfe4e1');w.addColorStop(1,'#f1f4f2');ctx.fillStyle=w;ctx.beginPath();ctx.arc(x,y,98,0,7);ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.7)';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(x,y,106,3.5,4.6);ctx.stroke();ctx.restore()}
+  bowls(){return this.cfg.items.rice&&this.cfg.items.rice.opts.her==='yes'?2:1}
+  amtK(k){const r=this.cfg.items.rice;return r?(k===1?r.opts.amtHer:r.opts.amt):'mid'}
+  riceR(k){return {small:34,mid:40,large:46}[this.amtK(k)]||40}
+  scoops(k){return {small:2,mid:3,large:4}[this.amtK(k)]||3}
+  offS(k){let n=0;for(let j=0;j<k;j++)n+=this.scoops(j);return n}
+  moundK(k){const sv=this.tb&&this.tb.sv;if(!sv)return 0;const n=this.scoops(k),rm=this.riceR(k);if(sv.done)return rm;const t=sv.t-1-this.offS(k)*1.3;if(t<0)return 0;const i=Math.floor(t/1.3),u=(t%1.3)/1.3;if(i>=n)return rm;return rm*Math.min(1,(i+ease((u-.45)/.4))/n)}
+  mound(ctx,x,y,r,rm){const bump=q=>r*(1+.045*Math.sin(5*q+1)+.03*Math.sin(9*q+2)+.02*Math.sin(13*q));
+    ctx.save();ctx.fillStyle='rgba(60,50,35,.3)';ctx.filter='blur(3px)';ctx.beginPath();ctx.arc(x+2,y+4,r+2,0,7);ctx.fill();ctx.restore();
+    ctx.save();ctx.beginPath();for(let i=0;i<=48;i++){const q=i/48*6.283,rr=bump(q);i?ctx.lineTo(x+Math.cos(q)*rr,y+Math.sin(q)*rr):ctx.moveTo(x+Math.cos(q)*rr,y+Math.sin(q)*rr)}ctx.closePath();ctx.clip();
+    ctx.drawImage(riceTex(),x-rm*1.04,y-rm*1.04,rm*2.08,rm*2.08);ctx.restore()}
+  bowlPos(k){return k===0?{x:112,y:112}:{x:112,y:262}}
+  drawBowl(ctx,a){if(a<.02)return;const nb=this.bowls();
+    for(let k=0;k<nb;k++){const {x,y}=this.bowlPos(k),r=this.moundK(k),R=62;ctx.save();ctx.globalAlpha=a;
+      ctx.shadowColor='rgba(0,0,0,.45)';ctx.shadowBlur=12;ctx.shadowOffsetY=7;
+      if(k===0){const g=ctx.createRadialGradient(x-16,y-18,6,x,y,R);g.addColorStop(0,'#ffffff');g.addColorStop(1,'#dde3e5');ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,R,0,7);ctx.fill();ctx.shadowColor='transparent';
+        const ig=ctx.createRadialGradient(x+8,y+10,4,x,y,52);ig.addColorStop(0,'#d9ece8');ig.addColorStop(1,'#a3cbc4');ctx.fillStyle=ig;ctx.beginPath();ctx.arc(x,y,52,0,7);ctx.fill();
+        ctx.fillStyle='#1b3f93';for(let i=0;i<14;i++){ctx.save();ctx.translate(x,y);ctx.rotate(i/14*6.283+.2);ctx.beginPath();ctx.moveTo(31,0);ctx.quadraticCurveTo(40,-4.2,49,-2.2);ctx.lineTo(49,2.2);ctx.quadraticCurveTo(40,4.2,31,0);ctx.fill();ctx.restore()}
+        ctx.strokeStyle='rgba(170,185,190,.6)';ctx.lineWidth=1;ctx.beginPath();ctx.arc(x,y,53,0,7);ctx.stroke()}
+      else{const g=ctx.createRadialGradient(x-16,y-18,6,x,y,R);g.addColorStop(0,'#fbfbf9');g.addColorStop(1,'#e2e2de');ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,R,0,7);ctx.fill();ctx.shadowColor='transparent';
+        ctx.strokeStyle='rgba(0,0,0,.08)';ctx.lineWidth=1.4;for(const rr of [58,54]){ctx.beginPath();ctx.arc(x,y,rr,0,7);ctx.stroke()}
+        const ig=ctx.createRadialGradient(x+6,y+8,4,x,y,48);ig.addColorStop(0,'#ececea');ig.addColorStop(1,'#dcdcd8');ctx.fillStyle=ig;ctx.beginPath();ctx.arc(x,y,48,0,7);ctx.fill();
+        ctx.fillStyle='rgba(255,255,255,.55)';for(let i=0;i<14;i++){ctx.save();ctx.translate(x,y);ctx.rotate(i/14*6.283);ctx.beginPath();ctx.ellipse(34,0,9,3.4,0,0,7);ctx.fill();ctx.restore()}}
+      if(r>2){this.mound(ctx,x,y,r,this.riceR(k));const sv=this.tb.sv;if(sv&&r>8){for(let i=0;i<2;i++){const ph=(this.time*.5+i/2+k*.3)%1,gx=x+(i-.5)*14,gy=y-r*.2-ph*44;const gg=ctx.createRadialGradient(gx,gy,0,gx,gy,22);gg.addColorStop(0,`rgba(255,255,255,${.22*(1-ph)})`);gg.addColorStop(1,'rgba(255,255,255,0)');ctx.fillStyle=gg;ctx.beginPath();ctx.arc(gx,gy,22,0,7);ctx.fill()}}}
+      ctx.restore()}}
+  drawPaddle(ctx){const sv=this.tb&&this.tb.sv;if(!sv||sv.done)return;const t=sv.t-1;if(t<0)return;let k=0;while(k<sv.nb&&t>=this.offS(k+1)*1.3)k++;if(k>=sv.nb)return;const n=this.scoops(k),tt=t-this.offS(k)*1.3,i=Math.floor(tt/1.3);if(i>=n)return;const u=(tt%1.3)/1.3;
+    const bp=this.bowlPos(k),src={x:410,y:70},dst={x:bp.x+20,y:bp.y+6};let p,carry;if(u<.45){const e=ease(u/.45);p={x:src.x+(dst.x-src.x)*e,y:src.y+(dst.y-src.y)*e};carry=true}else{const e=ease((u-.45)/.55);p={x:dst.x+(src.x-dst.x)*e,y:dst.y+(src.y-dst.y)*e};carry=false}
+    const ang=Math.atan2(dst.y-src.y,dst.x-src.x);ctx.save();ctx.translate(p.x,p.y);ctx.rotate(ang);ctx.shadowColor='rgba(0,0,0,.4)';ctx.shadowBlur=8;ctx.shadowOffsetY=8;
+    ctx.fillStyle='#f4f1e8';ctx.beginPath();ctx.roundRect(10,-5,110,10,5);ctx.fill();ctx.beginPath();ctx.ellipse(-8,0,26,17,0,0,7);ctx.fill();ctx.shadowColor='transparent';
+    if(carry){const RM=this.riceR(k);ctx.save();ctx.beginPath();ctx.ellipse(-12,0,18,12,0,0,7);ctx.clip();ctx.rotate(-ang);ctx.drawImage(riceTex(),-12-RM*.5,-RM*.5,RM,RM);ctx.restore();ctx.strokeStyle='rgba(150,145,130,.5)';ctx.beginPath();ctx.ellipse(-12,0,18,12,0,0,7);ctx.stroke()}ctx.restore()}
+  drawCooker(ctx){const W=this.W,t=this.cur&&this.cur.n==='cooker'?this.cur.t:(this.riceOn?99:0),pr=this.riceProg;
+    const bg=ctx.createLinearGradient(0,0,0,W);bg.addColorStop(0,'#d8d1c3');bg.addColorStop(1,'#bdb4a2');ctx.fillStyle=bg;ctx.fillRect(0,0,W,W);
+    ctx.strokeStyle='rgba(0,0,0,.06)';ctx.lineWidth=2;for(let y=60;y<W;y+=90){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
+    ctx.save();ctx.shadowColor='rgba(0,0,0,.35)';ctx.shadowBlur=18;ctx.shadowOffsetY=10;const bd=ctx.createLinearGradient(60,40,400,420);bd.addColorStop(0,'#fbfaf7');bd.addColorStop(1,'#d9d6cd');ctx.fillStyle=bd;ctx.beginPath();ctx.roundRect(52,28,356,404,40);ctx.fill();ctx.restore();
+    ctx.fillStyle='#2b2f33';ctx.beginPath();ctx.roundRect(120,356,220,52,12);ctx.fill();
+    ctx.fillStyle=this.riceOn?(pr>=1?'#7be0a0':'#ffb347'):'#5d6a70';ctx.font='700 20px "Zen Maru Gothic",sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    const mins=Math.ceil((1-pr)*40);ctx.fillText(!this.riceOn?'待機中':pr>=1?'炊きあがり':'炊飯中  あと'+mins+'分',230,383);
+    // 内釜
+    const cx=230,cy=190;ctx.fillStyle='#8f959c';ctx.beginPath();ctx.arc(cx,cy,142,0,7);ctx.fill();const rg=ctx.createLinearGradient(cx-140,cy-140,cx+140,cy+140);rg.addColorStop(0,'#e9ecef');rg.addColorStop(1,'#8d939a');ctx.fillStyle=rg;ctx.beginPath();ctx.arc(cx,cy,136,0,7);ctx.fill();
+    ctx.fillStyle='#2f3236';ctx.beginPath();ctx.arc(cx,cy,124,0,7);ctx.fill();
+    if(!this.grains){this.grains=[];for(let i=0;i<340;i++){const a=rnd(0,6.283),r=Math.sqrt(Math.random())*112;this.grains.push([Math.cos(a)*r,Math.sin(a)*r,rnd(0,3.14)])}}
+    const swell=1+.25*Math.min(1,pr*1.4);ctx.save();ctx.beginPath();ctx.arc(cx,cy,122,0,7);ctx.clip();
+    const sw=Math.min(1,t/2.4);const rot=Math.sin(t*3)*.08*(1-sw);
+    if(pr<1){ctx.fillStyle=pr<.05?'rgba(150,200,230,.5)':'rgba(150,200,230,.22)';ctx.fillRect(cx-130,cy-130,260,260);}
+    ctx.fillStyle=pr>.6?'#fffefa':'rgba(246,244,236,.95)';for(const g of this.grains){const gx=cx+(g[0]*Math.cos(rot)-g[1]*Math.sin(rot)),gy=cy+(g[0]*Math.sin(rot)+g[1]*Math.cos(rot));ctx.beginPath();ctx.ellipse(gx,gy,3.4*swell,1.9*swell,g[2],0,7);ctx.fill()}
+    if(pr>=1){ctx.fillStyle='rgba(255,255,255,.18)';ctx.beginPath();ctx.arc(cx-30,cy-34,70,0,7);ctx.fill()}
+    if(pr<.05&&t<2.4){ctx.strokeStyle='rgba(255,255,255,.35)';ctx.lineWidth=1.5;for(let i=0;i<3;i++){const ph=(t*.7+i/3)%1;ctx.beginPath();ctx.arc(cx,cy,ph*110,0,7);ctx.stroke()}}
+    ctx.restore();
+    // ふた
+    const lk=ease((t-2.6)/1);if(lk>0){const oy=-(1-lk)*280;ctx.save();ctx.translate(0,oy);ctx.shadowColor='rgba(0,0,0,.35)';ctx.shadowBlur=14;ctx.shadowOffsetY=8;const lg=ctx.createRadialGradient(cx-40,cy-50,10,cx,cy,142);lg.addColorStop(0,'#f6f7f8');lg.addColorStop(1,'#c9cdd2');ctx.fillStyle=lg;ctx.beginPath();ctx.arc(cx,cy,142,0,7);ctx.fill();ctx.shadowColor='transparent';
+      ctx.fillStyle='#b5babf';ctx.beginPath();ctx.arc(cx,cy,34,0,7);ctx.fill();ctx.fillStyle='#8e949a';ctx.beginPath();ctx.arc(cx,cy,10,0,7);ctx.fill();ctx.restore()}
+    if(lk>=1&&this.riceOn){const s=pr<1?Math.min(1,pr*5):.25;for(let i=0;i<4;i++){const ph=(this.time*.35+i/4)%1,x=cx+Math.sin(ph*6+i)*10,y=cy-ph*130;const g=ctx.createRadialGradient(x,y,0,x,y,26+ph*26);g.addColorStop(0,`rgba(255,255,255,${.4*s*(1-ph)})`);g.addColorStop(1,'rgba(255,255,255,0)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,52,0,7);ctx.fill()}}}
+  drawOil(ctx){const o=this.oil;if(o.r<1)return;const C=this.C,n=64;const thick={less:.75,mid:1,more:1.25}[this.cfg?this.cfg.items.oil.opts.amt:'mid'];
+    ctx.beginPath();for(let i=0;i<=n;i++){const a=i/n*Math.PI*2,r=o.r*(1+.05*Math.sin(3*a+o.seed)+.035*Math.sin(5*a+o.seed*2));const x=C.x+Math.cos(a)*r,y=C.y+Math.sin(a)*r;i?ctx.lineTo(x,y):ctx.moveTo(x,y)}
+    const g=ctx.createRadialGradient(C.x,C.y,0,C.x,C.y,o.r);g.addColorStop(0,`rgba(255,226,120,${.07*thick})`);g.addColorStop(1,`rgba(255,208,80,${.15*thick})`);ctx.fillStyle=g;ctx.fill();
+    ctx.strokeStyle='rgba(255,240,170,.3)';ctx.lineWidth=1.5;ctx.stroke();
+    ctx.strokeStyle='rgba(255,255,255,.22)';ctx.lineWidth=3;ctx.lineCap='round';ctx.beginPath();ctx.arc(C.x,C.y,o.r*.62,-2.5,-1.8);ctx.stroke();ctx.beginPath();ctx.arc(C.x,C.y,o.r*.35,-.4,.2);ctx.stroke()}
+  blob(ctx,p){const q=p.pts,m=(a,b)=>[(a[0]+b[0])/2,(a[1]+b[1])/2];let s=m(q[3],q[0]);ctx.beginPath();ctx.moveTo(s[0],s[1]);for(let i=0;i<4;i++){const e=m(q[i],q[(i+1)%4]);ctx.quadraticCurveTo(q[i][0],q[i][1],e[0],e[1])}ctx.closePath()}
+  porkPath(ctx,p,bend,sx){const s=p.sh,N=16,h=p.h,hw=p.w/2*sx;
+    const y=(t,u)=>{const tap=Math.pow(Math.max(0,1-Math.pow(Math.abs(t),3.4)),.5);const nz=1+s.a1*Math.sin(s.k1*t+s.p1)+s.a2*Math.sin(s.k2*t+s.p2*u);return u*(h/2)*tap*nz+bend*(1-t*t)*h};
+    ctx.beginPath();for(let i=0;i<=N;i++){const t=-1+2*i/N;i?ctx.lineTo(t*hw,y(t,-1)):ctx.moveTo(t*hw,y(t,-1))}
+    for(let i=N;i>=0;i--){const t=-1+2*i/N;ctx.lineTo(t*hw,y(t,1))}ctx.closePath();return {y,hw}}
+  drawPiece(ctx,p,ov){
+    if(!p.body||p.delay>0)return;const q=ov?ov:p.body.position,ang=ov?ov.a:p.body.angle;
+    let sy=1,lift=0,bend=0,showUp=p.side;
+    if(p.flip>0){const pr=1-p.flip;sy=Math.max(.1,Math.abs(Math.cos(Math.PI*pr)));lift=Math.sin(Math.PI*pr)*16;bend=Math.sin(Math.PI*pr)*.5*(p.bd||1);showUp=pr<.5?(p.side^1):p.side}
+    if(ov)lift+=ov.lift;const zs=(1+(p.z+lift*.6)/90)*(ov?ov.s:1);
+    ctx.save();ctx.globalAlpha=p.fall>0?Math.min(1,(1-p.fall/.38)*1.6+.15):1;ctx.translate(q.x,q.y-p.z*.9-lift);ctx.rotate(ang);ctx.scale(zs,zs*sy);
+    ctx.shadowColor='rgba(0,0,0,.5)';ctx.shadowBlur=4+p.z*.2+lift*.4;ctx.shadowOffsetY=2+p.z*.25+lift*.7;
+    const up=showUp,dn=1-showUp,cu=p.c[up],cd=p.c[dn];
+    if(p.t==='pork'){
+      const col=lerpStops(PORK_STOPS,cu),sx=1-.16*Math.min(1,Math.max(p.c[0],p.c[1])/.9);
+      const fc=mix([252,238,234],[226,184,116],Math.min(1,cu/.75)),fa=Math.max(.3,.95-cu*.55);
+      const pa=this.porkPath(ctx,p,bend,sx);ctx.fillStyle=rgb(p.sh.fatty?fc:col);ctx.fill();ctx.shadowColor='transparent';
+      ctx.save();this.porkPath(ctx,p,bend,sx);ctx.clip();
+      if(TEX.ok&&!p.sh.fatty){ctx.save();ctx.globalCompositeOperation='soft-light';ctx.globalAlpha=.42*Math.max(0,1-cu*1.1);ctx.translate((p.seed*37)%90,(p.seed*53)%80);ctx.fillStyle=TEX.pat(ctx);ctx.fillRect(-300,-300,600,600);ctx.restore()}
+      ctx.lineCap='round';
+      for(const st of p.sh.st){ctx.strokeStyle=st.lean?rgb(col):rgb(fc,fa);ctx.lineWidth=p.h*st.w;ctx.beginPath();for(let i=0;i<=14;i++){const t=-.97+1.94*i/14;i?ctx.lineTo(t*pa.hw,pa.y(t,st.u)):ctx.moveTo(t*pa.hw,pa.y(t,st.u))}ctx.stroke()}
+      for(const d of p.sh.dots){ctx.fillStyle=rgb(fc,fa*.9);ctx.beginPath();ctx.ellipse(d.x*pa.hw,d.y*p.h,d.r*p.h*1.3,d.r*p.h*.8,0,0,7);ctx.fill()}
+      if(p.red>.02){ctx.fillStyle=`rgba(212,52,30,${p.red*.5})`;ctx.fillRect(-p.w,-p.h,p.w*2,p.h*2)}
+      if(p.sauce>.02){ctx.fillStyle=`rgba(86,36,12,${Math.min(.72,p.sauce*.62+p.glaze*.14)})`;ctx.fillRect(-p.w,-p.h,p.w*2,p.h*2)}
+      if(p.glaze>.9){ctx.fillStyle=`rgba(20,8,2,${Math.min(.6,(p.glaze-.9)*1.2)})`;ctx.fillRect(-p.w,-p.h,p.w*2,p.h*2)}
+      ctx.restore();
+      this.porkPath(ctx,p,bend,sx);ctx.strokeStyle=rgb(lerpStops(PORK_STOPS,cd+.2),.9);ctx.lineWidth=3.2;ctx.stroke();
+      const wet=Math.min(1,(Math.hypot(q.x-this.C.x,q.y-this.C.y)<this.oil.r?.5:.15)+p.sauce*.6+p.glaze*.3);ctx.strokeStyle=`rgba(255,255,255,${Math.min(.5,.24*wet)})`;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(-p.w*.28,-p.h*.2+bend*p.h*.6);ctx.lineTo(p.w*.08,-p.h*.24+bend*p.h);ctx.stroke();
+    } else if(p.t==='kimchi'){
+      const cc=Math.min(1,p.c[0]);const base=mix([172,56,32],[128,32,20],cc*.7);this.blob(ctx,p);ctx.fillStyle=rgb(base);ctx.fill();ctx.shadowColor='transparent';
+      ctx.save();this.blob(ctx,p);ctx.clip();
+      ctx.lineCap='round';ctx.strokeStyle=rgb(mix([236,178,128],[200,110,80],cc*.5),.55);ctx.lineWidth=p.h*.26;ctx.beginPath();ctx.moveTo(-p.w*.36,(((p.seed*7)%1)-.5)*p.h*.5);ctx.quadraticCurveTo(0,(((p.seed*13)%1)-.5)*p.h*.9,p.w*.34,(((p.seed*3)%1)-.5)*p.h*.5);ctx.stroke();
+      if(TEXK.ok){ctx.save();ctx.globalCompositeOperation='soft-light';ctx.globalAlpha=.7;ctx.translate((p.seed*41)%80,(p.seed*29)%60);ctx.fillStyle=TEXK.pat(ctx);ctx.fillRect(-300,-300,600,600);ctx.restore()}
+      ctx.fillStyle='rgba(120,20,12,.55)';for(let i=0;i<3;i++){ctx.fillRect(Math.sin(p.seed*7+i*2.1)*p.w*.4,Math.cos(p.seed*3+i*1.7)*p.h*.3,1.6,1.6)}
+      if(p.sauce>.02){ctx.fillStyle=`rgba(86,36,12,${Math.min(.55,p.sauce*.6)})`;ctx.fillRect(-p.w,-p.h,p.w*2,p.h*2)}
+      ctx.restore();ctx.strokeStyle='rgba(255,255,255,.14)';ctx.lineWidth=1.6;ctx.beginPath();ctx.moveTo(-p.w*.2,-p.h*.25);ctx.lineTo(p.w*.2,-p.h*.28);ctx.stroke();
+    } else {
+      const col=mix([92,168,58],[58,108,36],Math.min(1,p.c[0]));this.blob(ctx,p);ctx.fillStyle=rgb(col);ctx.fill();ctx.shadowColor='transparent';
+      if(p.sauce>.02){ctx.fillStyle=`rgba(86,36,12,${Math.min(.5,p.sauce*.55)})`;this.blob(ctx,p);ctx.fill()}
+    }
+    ctx.restore()}
+  drawSpat(ctx){if(!this.spOn&&!this.spUp)return;const C=this.C,x=this.spX,y=this.spY,a=this.spA;ctx.save();if(this.spUp)ctx.globalAlpha=.82;ctx.translate(x,y);ctx.rotate(a);
+    // 柄は中心から外へ（進行方向と直角＝半径方向）
+    const out=Math.atan2(y-C.y,x-C.x)-a;ctx.save();ctx.rotate(out);ctx.shadowColor='rgba(0,0,0,.45)';ctx.shadowBlur=6;ctx.shadowOffsetY=6;
+    for(const o of [-3.4,3.4]){ctx.fillStyle='#e4c58a';ctx.beginPath();ctx.roundRect(8,o-2.1,66,4.2,2);ctx.fill();ctx.shadowColor='transparent';ctx.fillStyle='#111214';ctx.beginPath();ctx.roundRect(70,o-2.6,92,5.2,2.5);ctx.fill();
+      const cs=['#d93a2f','#f2cf2c','#2fa84f'];for(let i=0;i<9;i++){ctx.fillStyle=cs[i%3];ctx.fillRect(76+i*9.2,o-2.6,2.4,5.2)};ctx.shadowColor='rgba(0,0,0,.45)'}
+    ctx.restore();
+    ctx.restore()}
+  drawBottle(ctx){const b=this.bottle;if(!b)return;const col=b.k==='oil'?['#f0c53a','#fff3b0']:['#f4f6fa','#8a5a36'];
+    ctx.save();ctx.globalAlpha=b.s;ctx.translate(b.x,b.y);ctx.rotate(Math.atan2(b.ty-b.y,b.tx-b.x)-Math.PI/2+.0);
+    ctx.shadowColor='rgba(0,0,0,.45)';ctx.shadowBlur=8;ctx.shadowOffsetY=8;ctx.fillStyle=b.k==='oil'?'#e8d8a0':'#2d3f9a';ctx.beginPath();ctx.roundRect(-14,-6,28,56,9);ctx.fill();ctx.shadowColor='transparent';
+    ctx.fillStyle=col[0];ctx.beginPath();ctx.roundRect(-14,14,28,24,3);ctx.fill();ctx.fillStyle=b.k==='oil'?'#c9a227':'#c9a64a';ctx.fillRect(-7,-14,14,10);ctx.restore();
+    ctx.save();ctx.globalAlpha=.9*b.s;ctx.strokeStyle=b.k==='oil'?'#f7d86a':'#4a2610';ctx.lineWidth=2.6;ctx.lineCap='round';const nx=b.x+(b.tx-b.x)*.18,ny=b.y+(b.ty-b.y)*.18;ctx.beginPath();ctx.moveTo(nx,ny);ctx.lineTo(b.tx,b.ty);ctx.stroke();
+    ctx.fillStyle=ctx.strokeStyle;ctx.beginPath();ctx.arc(b.tx,b.ty,4.5,0,7);ctx.fill();ctx.restore()}
+  loop(){const f=t=>{requestAnimationFrame(f);const dt=Math.min(.05,(t-(this.last||t))/1000);this.last=t;if(this.paused||document.hidden)return;this.update(dt);this.draw()};requestAnimationFrame(f)}
+}
+
+/* ========== バックアップ ========== */
+$('#bkOut').onclick=async()=>{
+  const refs={};try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k.startsWith('gohan-ref:'))refs[k]=JSON.parse(localStorage.getItem(k))}}catch(e){}
+  const data=JSON.stringify({v:1,setups:sget('gohan-setups',[]),refs});
+  try{const dl=await claude.use('downloads');if(!dl){toast('この画面では書き出せません');return}await dl.save({filename:'recipe-simulator-backup.json',data});toast('書き出しました')}
+  catch(e){if(e&&e.code==='declined')return;toast('この画面では書き出せませんでした')}};
+$('#bkIn').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const j=JSON.parse(await f.text());
+    const cur=sget('gohan-setups',[]);(j.setups||[]).forEach(x=>{const i=cur.findIndex(y=>y.recipe===x.recipe&&y.name===x.name);if(i>=0)cur[i]=x;else cur.push(x)});sset('gohan-setups',cur);
+    Object.entries(j.refs||{}).forEach(([k,v])=>{if(k.startsWith('gohan-ref:')&&Array.isArray(v)){const old=sget(k,[]);sset(k,old.concat(v.filter(d=>!old.includes(d))))}});toast('読み込みました')}catch(err){toast('読み込めないファイルでした')}e.target.value=''};
+
+renderMenu();
+</script>
+</body></html>
