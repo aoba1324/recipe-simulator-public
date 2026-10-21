@@ -368,7 +368,7 @@ setInterval(()=>{ if(!sim||$('#sc-cook').hidden)return;
   if(w._h!==html){w.innerHTML=html;w._h=html}
   const b=$('#badge');let msg='';if(q.stickWarn&&!q.lidOn)msg='油が足りず、くっつきやすい状態';else if(q.cold)msg='フライパンが温まる前です（焼き色がつきにくい）';else if(q.lidOn&&q.temp>.88)msg='蓋の中が熱すぎます。少し火を弱めましょう';else if(q.burnt&&!q.lidOn)msg='焦げそうです。火を弱めるか混ぜましょう';
   {const t=q.temp;$('#tempBar').style.width=Math.round(t*100)+'%';const oilS=st.id==='oil',z=$('#tempZone');if(z){z.style.left=oilS?'40%':'50%';z.style.width=oilS?'18%':'35%'}
-    $('#tempTxt').textContent=(oilS?(t<.12?'冷たい':t<.4?'温まりはじめ':t<=.6?'ちょうどいい（弱火で温まった）':'かなり熱い'):(t<.12?'冷たい':t<.35?'温まりはじめ':t<.5?'あと少し':t<=.85?'ちょうどいい（中火の温度）':'かなり熱い'))+'　'+Math.round(t*100)+'%'}
+    $('#tempTxt').textContent=(oilS?(t<.12?'冷たい':t<.4?'温まりはじめ':t<=.6?'ちょうどいい（'+(['切','弱火','中火','強火','中弱火'][sim.heat])+'で温まった）':'かなり熱い'):(t<.12?'冷たい':t<.35?'温まりはじめ':t<.5?'あと少し':t<=.85?'ちょうどいい（焼ける温度）':'かなり熱い'))+'　'+Math.round(t*100)+'%'}
   if(sim.scene!=='pan'||(sim.tb&&sim.tb.on))msg='';
   b.hidden=!msg;b.textContent=msg;b.classList.toggle('warn',!!msg)},250);
 
