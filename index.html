@@ -127,6 +127,9 @@ details summary{font-weight:900;cursor:pointer;min-height:36px;display:flex;alig
   <div class="top"><button class="ico" id="setupBack" aria-label="メニューに戻る">←</button><h2 id="setupTitle"></h2></div>
   <div class="card"><div class="stepper"><span class="sub" style="font-weight:700">人数</span><button class="btn" id="svMinus" aria-label="1人減らす">−</button><b id="svNum">2人前</b><button class="btn" id="svPlus" aria-label="1人増やす">＋</button></div></div>
   <div id="ings" class="stack"></div>
+  <div class="card stack"><b>くらしの手帳に送る</b><span class="sub">コピーして、くらしの手帳の「貼り付け」に貼ると、買い物リストや料理に入れられます。</span>
+   <div class="row"><button class="btn sm" id="cpIngs">材料をコピー</button><button class="btn sm" id="cpDish">料理をコピー</button></div>
+   <textarea id="cpTa" rows="4" hidden readonly aria-label="コピーする内容"></textarea></div>
   <div class="card stack">
    <b>設定を保存する</b>
    <div class="row" style="flex-wrap:nowrap"><input type="text" id="svName" placeholder="名前（例：いつもの味）" maxlength="30" aria-label="保存名"><button class="btn teal" id="svSave" style="flex:none">保存</button></div>
@@ -309,6 +312,16 @@ function renderSaved(){const h=$('#svList');h.innerHTML='';const all=sget('gohan
     const l=document.createElement('button');l.className='btn sm teal';l.textContent='読み込む';l.onclick=()=>{SET=mergeSetup(CUR,x.setup);$('#svName').value=x.name;renderSetup();toast('「'+x.name+'」を読み込みました')};
     const del=document.createElement('button');del.className='btn sm';del.textContent='削除';del.onclick=()=>arm(del,'本当に削除',()=>{const a=sget('gohan-setups',[]).filter(y=>!(y.recipe===x.recipe&&y.name===x.name));sset('gohan-setups',a);renderSaved();toast('削除しました')});
     d.appendChild(l);d.appendChild(del);h.appendChild(d)})}
+/* くらしの手帳に送る（コピー用の文章を作る） */
+function sendText(kind){const r=CUR,rows=[];
+  r.ingredients.forEach(g=>{const it=SET.items[g.id];if(!it||!it.on)return;let q=String(g.fmt(SET,it.opts)||'').trim();
+    g.opts.forEach(p=>{if(p.k==='part'){const c=p.ch.find(x=>x[0]===it.opts.part);if(c)q=(q?q+'（':'（')+c[1]+'）'}});
+    if(!q&&g.id==='rice')return;rows.push({n:g.name.replace(/（仕上げ）$/,''),q})});
+  const ttl=r.name+'（'+SET.servings+'人前）';
+  return 'くらしの手帳に貼り付けてください\n#kurashi '+JSON.stringify({v:1,k:kind,name:r.name,sv:SET.servings,ings:rows})+'\n'+ttl+'\n'+rows.map(x=>'・'+x.n+(x.q?' '+x.q:'')).join('\n')}
+async function sendCopy(kind){const t=sendText(kind),ta=$('#cpTa');let ok=false;try{await navigator.clipboard.writeText(t);ok=true}catch(e){}
+  if(ok){ta.hidden=true;toast(kind==='ings'?'材料をコピーしました':'料理をコピーしました')}else{ta.hidden=false;ta.value=t;ta.focus();ta.select();toast('選択しました。コピーしてください')}}
+$('#cpIngs').onclick=()=>sendCopy('ings');$('#cpDish').onclick=()=>sendCopy('dish');
 $('#svSave').onclick=()=>{const n=$('#svName').value.trim();if(!n){toast('保存する名前を入れてください');$('#svName').focus();return}
   const a=sget('gohan-setups',[]);const i=a.findIndex(y=>y.recipe===CUR.id&&y.name===n);const rec={recipe:CUR.id,name:n,setup:JSON.parse(JSON.stringify(SET)),ts:Date.now()};
   if(i>=0)a[i]=rec;else a.unshift(rec);const ok=sset('gohan-setups',a);renderSaved();toast(ok?(i>=0?'上書き保存しました':'保存しました'):'この環境では保存できませんでした')};
