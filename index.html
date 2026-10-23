@@ -129,11 +129,12 @@ details summary{font-weight:900;cursor:pointer;min-height:36px;display:flex;alig
  <section id="sc-setup" class="stack" hidden>
   <div class="top"><button class="ico" id="setupBack" aria-label="メニューに戻る">←</button><h2 id="setupTitle"></h2></div>
   <div class="card"><div class="stepper"><span class="sub" style="font-weight:700">人数</span><button class="btn" id="svMinus" aria-label="1人減らす">−</button><b id="svNum">2人前</b><button class="btn" id="svPlus" aria-label="1人増やす">＋</button></div></div>
-  <div class="card hero2" id="hero2" hidden><div id="heroBox"></div><div class="row" id="viewRow"></div></div>
-  <div id="ings" class="stack"></div>
-  <div class="card stack"><b>くらしの手帳に送る</b><span class="sub">コピーして、くらしの手帳の「貼り付け」に貼ると、買い物リストや料理に入れられます。</span>
+    <div class="card stack"><b>くらしの手帳に送る</b><span class="sub">コピーして、くらしの手帳の「貼り付け」に貼ると、買い物リストや料理に入れられます。</span>
    <div class="row"><button class="btn sm" id="cpIngs">材料をコピー</button><button class="btn sm" id="cpDish">料理をコピー</button></div>
    <textarea id="cpTa" rows="4" hidden readonly aria-label="コピーする内容"></textarea></div>
+  <div class="card hero2" id="hero2" hidden><div id="heroBox"></div><div class="row" id="viewRow"></div></div>
+  <div class="row" id="ingView" hidden></div>
+  <div id="ings" class="stack"></div>
   <div class="card stack">
    <b>設定を保存する</b>
    <div class="row" style="flex-wrap:nowrap"><input type="text" id="svName" placeholder="名前（例：いつもの味）" maxlength="30" aria-label="保存名"><button class="btn teal" id="svSave" style="flex:none">保存</button></div>
@@ -289,19 +290,23 @@ function drawnOf(r,set){const k=r.id+':'+JSON.stringify(set);if(!(k in PCACHE)){
 function lookOf(r,set){const ph=dishPhotoOf(r),m=viewMode();if(ph&&m!=='draw')return {src:ph,kind:'photo',has:true};return {src:drawnOf(r,set),kind:'draw',has:!!ph}}
 function viewChips(row,has,after){row.innerHTML='';if(!has)return;const m=viewMode()==='draw'?'draw':'photo';
   [['photo','写真'],['draw','シミュレーターの絵']].forEach(([v,l])=>{const b=document.createElement('button');b.className='chip';b.textContent=l;b.setAttribute('aria-pressed',m===v);b.onclick=()=>{sset('gohan-view',v);after()};row.appendChild(b)})}
+async function setDishPhoto(r,file,after){const sv=CUR;CUR=r;try{const d=await fileToData(file);const k=refKey('final'),l=sget(k,[]);l.unshift(d);if(!sset(k,l))toast('保存できませんでした（容量がいっぱいかも）');else{sset('gohan-view','photo');toast('完成の写真を設定しました')}}catch(e){toast('読み込めない画像でした')}CUR=sv;after()}
+function photoBtn(r,has,after){const lb=document.createElement('label');lb.className='btn sm';lb.style.alignSelf='flex-start';lb.textContent=has?'📷 完成の写真を変える':'📷 完成の写真を設定';const inp=document.createElement('input');inp.type='file';inp.accept='image/*';inp.hidden=true;inp.onchange=()=>{if(inp.files[0])setDishPhoto(r,inp.files[0],after)};lb.appendChild(inp);return lb}
 function renderMenu(){const h=$('#dishes');h.innerHTML='';let anyPh=false;
   RECIPES.forEach(r=>{const set=mergeSetup(r,sget('gohan-last:'+r.id,null)),lk=lookOf(r,set);anyPh=anyPh||lk.has;
     const b=document.createElement('button');b.className='dish';b.innerHTML=`<span class="em">${r.emoji}</span><span><b></b><span class="sub"></span></span>`;
     if(lk.src){const im=document.createElement('img');im.className='th';im.alt=r.name+'の完成';im.src=lk.src;b.replaceChild(im,b.firstChild)}
-    b.querySelector('b').textContent=r.name;b.querySelector('.sub').textContent=r.time+'・'+r.desc;b.onclick=()=>openSetup(r);h.appendChild(b)});
+    b.querySelector('b').textContent=r.name;b.querySelector('.sub').textContent=r.time+'・'+r.desc;b.onclick=()=>openSetup(r);const w=document.createElement('div');w.className='stack';w.style.gap='6px';w.appendChild(b);w.appendChild(photoBtn(r,!!dishPhotoOf(r),renderMenu));h.appendChild(w)});
   if(anyPh){const row=document.createElement('div');row.className='row';const lb=document.createElement('span');lb.className='sub';lb.textContent='完成の見た目';row.appendChild(lb);const box=document.createElement('div');box.className='row';box.style.gap='6px';row.appendChild(box);viewChips(box,true,renderMenu);h.appendChild(row)}
   const o=document.createElement('div');o.className='dish off';o.innerHTML='<span class="em">＋</span><span><b>ほかの料理</b><span class="sub">これから追加していきます</span></span>';h.appendChild(o)}
+function renderIngView(){const row=$('#ingView');if(!row||!CUR)return;const any=CUR.ingredients.some(g=>sget(refKey('ing:'+g.id),[])[0]||(g.id==='kimchi'||g.id==='soy'||g.id==='oil'||g.id==='pork'?PH_OK(g.id):false));row.innerHTML='';row.hidden=!any;if(!any)return;const lb=document.createElement('span');lb.className='sub';lb.textContent='材料の見た目';row.appendChild(lb);viewChips(row,true,renderSetup)}
+const PH_OK=id=>!!(typeof PHOTOS!=='undefined'&&PHOTOS[id]);
 function renderHero(){const w=$('#hero2');if(!w||!CUR)return;const lk=lookOf(CUR,SET);w.hidden=!lk.src;if(!lk.src)return;
   $('#heroBox').innerHTML='';const im=document.createElement('img');im.alt='いまの設定の完成のようす';im.src=lk.src;$('#heroBox').appendChild(im);
-  const cap=document.createElement('div');cap.className='sub';cap.textContent=lk.kind==='photo'?'完成のお手本写真':'いまの設定でできあがる見た目（シミュレーターの絵）';$('#heroBox').appendChild(cap);viewChips($('#viewRow'),lk.has,renderSetup)}
+  const cap=document.createElement('div');cap.className='sub';cap.textContent=lk.kind==='photo'?'完成のお手本写真':'いまの設定でできあがる見た目（シミュレーターの絵）';$('#heroBox').appendChild(cap);viewChips($('#viewRow'),lk.has,renderSetup);$('#viewRow').appendChild(photoBtn(CUR,lk.has,renderSetup))}
 function openSetup(r){CUR=r;PREP={};SET=mergeSetup(r,sget('gohan-last:'+r.id,null));$('#setupTitle').textContent=r.name+'の準備';renderSetup();renderSaved();renderRefs($('#finalRefs'),'final');show('setup')}
 function renderSetup(){
-  $('#svNum').textContent=SET.servings+'人前';renderHero();
+  $('#svNum').textContent=SET.servings+'人前';renderHero();renderIngView();
   const h=$('#ings');h.innerHTML='';
   CUR.ingredients.forEach(g=>{const it=SET.items[g.id];const c=document.createElement('div');c.className='card ing'+(it.on?'':' off');
     c.innerHTML=`<div class="head"><span class="artw"></span><b></b><span class="qty"></span></div>`;
